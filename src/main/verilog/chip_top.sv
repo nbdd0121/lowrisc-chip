@@ -57,6 +57,12 @@ module chip_top
    inout         spi_miso,
 `endif
 
+   output [3:0]  vga_red,
+   output [3:0]  vga_green,
+   output [3:0]  vga_blue,
+   output        vga_hsync,
+   output        vga_vsync,
+
    // clock and reset
    input         clk_p,
    input         clk_n,
@@ -822,5 +828,21 @@ module chip_top
       .nasti_s  ( io_nasti  ),
       .lite_m   ( io_lite   )
       );
+
+   (* keep="soft" *)
+   wire [3:0] redlo;
+   wire [3:0] greenlo;
+   wire [3:0] bluelo;
+
+   // VGA
+   vga_controller vga(
+      .clk (clk),
+      .rst (rst),
+      .red ({vga_red, redlo}),
+      .green ({vga_green, greenlo}),
+      .blue ({vga_blue, bluelo}),
+      .hsync (vga_hsync),
+      .vsync (vga_vsync)
+   );
 
 endmodule // chip_top

@@ -129,6 +129,9 @@ module tb;
 
    assign spi_sclk = 1'bz;
 
+   wire [3:0] vga_red, vga_green, vga_blue;
+   wire vga_hsync, vga_vsync;
+
 `endif
 
 endmodule // tb
