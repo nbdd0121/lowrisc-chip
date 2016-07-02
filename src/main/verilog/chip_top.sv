@@ -842,7 +842,8 @@ module chip_top
       .green ({vga_green, greenlo}),
       .blue ({vga_blue, bluelo}),
       .hsync (vga_hsync),
-      .vsync (vga_vsync)
+      .vsync (vga_vsync),
+      .color (24'hF0DF60)
    );
 
 endmodule // chip_top

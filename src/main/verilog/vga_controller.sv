@@ -1,11 +1,18 @@
 module vga_controller (
 	input  wire clk,
-	input  wire rst, /* reset, active high */
+	// Reset, active high
+	input  wire rst,
 	output wire [7:0] red,
 	output wire [7:0] green,
 	output wire [7:0] blue,
 	output reg hsync,
-	output reg vsync
+	output reg vsync,
+
+	// External image provider
+	output wire clkr,
+	output wire [15:0] x,
+	output wire [15:0] y,
+	input  wire [23:0] color
 );
 
 parameter H_FRONT_PORCH = 16'd16;
@@ -20,17 +27,14 @@ parameter V_FRAME_WIDTH = 16'd480;
 parameter V_BACK_PORCH  = 16'd33;
 parameter V_TOTAL_WIDTH = 16'd525;
 
-parameter COLOR_R = 8'hF0;
-parameter COLOR_G = 8'hDF;
-parameter COLOR_B = 8'h60;
-
 reg [15:0] h_counter;
 reg [15:0] v_counter;
-reg en;
+wire en;
 
-always @(posedge clk)
+// Logic to update h and v counters
+always @(posedge clk or posedge rst)
 begin
-	if(rst == 1)
+	if (rst)
 		begin
 			h_counter <= 0;
 			v_counter <= 0;
@@ -52,6 +56,8 @@ begin
 		end
 end
 
+// This delays the generation of hsync and vsync signals by one clock cycle
+// since we need one clock cycle to get the RGB data
 always @(posedge clk)
 begin
 	if (h_counter >= H_FRAME_WIDTH + H_FRONT_PORCH && h_counter < H_FRAME_WIDTH + H_FRONT_PORCH + H_SYNC_PULSE)
@@ -68,16 +74,21 @@ begin
 		vsync <= 0;
 end
 
-always @(posedge clk)
-begin
-	if (h_counter < H_FRAME_WIDTH && v_counter < V_FRAME_WIDTH)
-		en <= 1;
-	else
-		en <= 0;
-end
+// Enable image output
+assign en = h_counter < H_FRAME_WIDTH && v_counter < V_FRAME_WIDTH;
 
-assign red = COLOR_R & {8{en}};
-assign green = COLOR_G & {8{en}};
-assign blue = COLOR_B & {8{en}};
+// Wire to image provider
+// `en` check is not necessary as we've disabled clock when `en` is false
+// but this is just an additional safe guard
+assign x = en ? h_counter : 0;
+assign y = en ? v_counter : 0;
+
+// Output color if enabled
+assign red = color[23:16] & {8{en}};
+assign green = color[15:8] & {8{en}};
+assign blue = color[7:0] & {8{en}};
+
+// Trigger image provider only if enabled
+assign clkr = clk & en;
 
 endmodule
