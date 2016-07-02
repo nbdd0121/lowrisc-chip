@@ -416,6 +416,94 @@ module chip_top
    initial $readmemh("boot.mem", ram);
 `endif
 
+   //////////////////////////////////////////////////////////////
+   // Video Memory
+
+   nasti_channel
+     #(
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
+   io_videomem_lite();
+
+   localparam VIDEOMEM_SIZE = 18;        // 2^18 -> 256 KiB
+
+   logic videomem_rst, videomem_clk, videomem_en;
+   logic [`LOWRISC_IO_DAT_WIDTH/8-1:0] videomem_we;
+   logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
+   logic [`LOWRISC_IO_DAT_WIDTH-1:0]   videomem_wrdata, videomem_rddata;
+
+   axi_bram_ctrl_1 videomem_ctl
+     (
+      .s_axi_aclk      ( clk                         ),
+      .s_axi_aresetn   ( rstn                        ),
+      .s_axi_araddr    ( io_videomem_lite.ar_addr    ),
+      .s_axi_arprot    ( 3'b000                      ),
+      .s_axi_arready   ( io_videomem_lite.ar_ready   ),
+      .s_axi_arvalid   ( io_videomem_lite.ar_valid   ),
+      .s_axi_awaddr    ( io_videomem_lite.aw_addr    ),
+      .s_axi_awprot    ( 3'b000                      ),
+      .s_axi_awready   ( io_videomem_lite.aw_ready   ),
+      .s_axi_awvalid   ( io_videomem_lite.aw_valid   ),
+      .s_axi_bready    ( io_videomem_lite.b_ready    ),
+      .s_axi_bresp     ( io_videomem_lite.b_resp     ),
+      .s_axi_bvalid    ( io_videomem_lite.b_valid    ),
+      .s_axi_rdata     ( io_videomem_lite.r_data     ),
+      .s_axi_rready    ( io_videomem_lite.r_ready    ),
+      .s_axi_rresp     ( io_videomem_lite.r_resp     ),
+      .s_axi_rvalid    ( io_videomem_lite.r_valid    ),
+      .s_axi_wdata     ( io_videomem_lite.w_data     ),
+      .s_axi_wready    ( io_videomem_lite.w_ready    ),
+      .s_axi_wstrb     ( io_videomem_lite.w_strb     ),
+      .s_axi_wvalid    ( io_videomem_lite.w_valid    ),
+      .bram_rst_a      ( videomem_rst                ),
+      .bram_clk_a      ( videomem_clk                ),
+      .bram_en_a       ( videomem_en                 ),
+      .bram_we_a       ( videomem_we                 ),
+      .bram_addr_a     ( videomem_addr               ),
+      .bram_wrdata_a   ( videomem_wrdata             ),
+      .bram_rddata_a   ( videomem_rddata             )
+      );
+
+   logic vga_clk;
+   logic [15:0] vga_addr;
+   logic [31:0] vga_color;
+
+   dual_port_bram videomem (
+	  .clk_a(videomem_clk & videomem_en),
+	  .we_a (videomem_we),
+	  .addr_a (videomem_addr[VIDEOMEM_SIZE - 1:2]),
+	  .write_a (videomem_wrdata),
+	  .read_a (videomem_rddata),
+
+	  .clk_b(vga_clk),
+	  .we_b (4'd0),
+	  .addr_b (vga_addr),
+	  .write_b(32'd0),
+	  .read_b (vga_color)
+   );
+
+   (* keep="soft" *)
+   logic [3:0] redlo, greenlo, bluelo;
+   logic [15:0] vga_x, vga_y;
+
+   // VGA
+   vga_controller vga(
+      .clk (clk),
+      .rst (rst),
+      .red ({vga_red, redlo}),
+      .green ({vga_green, greenlo}),
+      .blue ({vga_blue, bluelo}),
+      .hsync (vga_hsync),
+      .vsync (vga_vsync),
+      .clkr (vga_clk),
+      .color (vga_color[23:0]),
+      .x (vga_x),
+      .y (vga_y)
+   );
+
+   assign vga_addr = {vga_y[7:0], vga_x[7:0]};
+
+
    /////////////////////////////////////////////////////////////
    // SPI
    nasti_channel
@@ -632,7 +720,7 @@ module chip_top
    /////////////////////////////////////////////////////////////
    // IO crossbar
 
-   localparam NUM_DEVICE = 4;
+   localparam NUM_DEVICE = 5;
 
    // output of the IO crossbar
    nasti_channel
@@ -646,7 +734,7 @@ module chip_top
 
    nasti_channel_slicer #(NUM_DEVICE)
    io_slicer (.s(io_cbo_lite), .m0(io_host_lite), .m1(io_uart_lite), .m2(io_spi_lite),
-              .m3(io_bram_lite), .m4(ios_dmm4), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
+              .m3(io_bram_lite), .m4(io_videomem_lite), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
 
    // the io crossbar
    nasti_crossbar
@@ -687,6 +775,9 @@ module chip_top
    defparam io_crossbar.BASE3 = `DEV_MAP__io_ext_bram__BASE;
    defparam io_crossbar.MASK3 = `DEV_MAP__io_ext_bram__MASK;
  `endif
+
+   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videomem__BASE;
+   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videomem__MASK;
 
    /////////////////////////////////////////////////////////////
    // the Rocket chip
@@ -828,22 +919,5 @@ module chip_top
       .nasti_s  ( io_nasti  ),
       .lite_m   ( io_lite   )
       );
-
-   (* keep="soft" *)
-   wire [3:0] redlo;
-   wire [3:0] greenlo;
-   wire [3:0] bluelo;
-
-   // VGA
-   vga_controller vga(
-      .clk (clk),
-      .rst (rst),
-      .red ({vga_red, redlo}),
-      .green ({vga_green, greenlo}),
-      .blue ({vga_blue, bluelo}),
-      .hsync (vga_hsync),
-      .vsync (vga_vsync),
-      .color (24'hF0DF60)
-   );
 
 endmodule // chip_top
