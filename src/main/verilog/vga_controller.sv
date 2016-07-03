@@ -1,6 +1,7 @@
 module dual_port_bram #(
 	parameter ADDR_WIDTH = 16,
-	parameter DATA_WIDTH = 32
+	parameter DATA_WIDTH = 32,
+	parameter DEFAULT_CONTENT = "video.mem"
 ) (
 	input  wire                          clk_a,
 	input  wire [(DATA_WIDTH / 8) - 1:0] we_a,
@@ -27,7 +28,7 @@ always_ff @(posedge clk_b) begin
 	foreach(we_b[i]) if(we_b[i]) mem[addr_b][i*8+:8] <= write_b[i*8+:8];
 end
 
-initial $readmemh("video.mem", mem);
+initial $readmemh(DEFAULT_CONTENT, mem);
 
 endmodule
 
