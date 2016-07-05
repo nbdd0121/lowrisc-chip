@@ -464,30 +464,10 @@ module chip_top
       .bram_rddata_a   ( videomem_rddata             )
       );
 
-   logic vga_clk;
-   logic [15:0] vga_addr;
-   logic [31:0] vga_color;
-
-   dual_port_bram videomem (
-	  .clk_a(videomem_clk & videomem_en),
-	  .we_a (videomem_we),
-	  .addr_a (videomem_addr[VIDEOMEM_SIZE - 1:2]),
-	  .write_a (videomem_wrdata),
-	  .read_a (videomem_rddata),
-
-	  .clk_b(vga_clk),
-	  .we_b (4'd0),
-	  .addr_b (vga_addr),
-	  .write_b(32'd0),
-	  .read_b (vga_color)
-   );
-
    (* keep="soft" *)
    logic [3:0] redlo, greenlo, bluelo;
-   logic [15:0] vga_x, vga_y;
 
-   // VGA
-   vga_controller vga(
+   video_unit video (
       .clk (clk),
       .rst (rst),
       .red ({vga_red, redlo}),
@@ -495,14 +475,14 @@ module chip_top
       .blue ({vga_blue, bluelo}),
       .hsync (vga_hsync),
       .vsync (vga_vsync),
-      .clkr (vga_clk),
-      .color (vga_color[23:0]),
-      .x (vga_x),
-      .y (vga_y)
+
+      .mem_clk(videomem_clk),
+      .mem_en (videomem_en),
+      .mem_we (videomem_we),
+      .mem_addr (videomem_addr[VIDEOMEM_SIZE - 1:2]),
+      .mem_write (videomem_wrdata),
+      .mem_read (videomem_rddata)
    );
-
-   assign vga_addr = {vga_y[7:0], vga_x[7:0]};
-
 
    /////////////////////////////////////////////////////////////
    // SPI
