@@ -500,46 +500,22 @@ module chip_top
    logic [VIDEOMEM_SIZE-1:0]                 videomem_addr;
    logic [LOWRISC_TILELINK_DATA_WIDTH-1:0]  videomem_rddata; // currently unused (but will be used in accelerator)
 
-   logic videomem_rst, videomem_clk, videomem_en;
-   logic vga_clk;
-   logic [15:0] vga_addr;
-   logic [31:0] vga_color;
+   video_unit video (
+      .clk (clk),
+      .rst (rst),
+      .red ({vga_red, redlo}),
+      .green ({vga_green, greenlo}),
+      .blue ({vga_blue, bluelo}),
+      .hsync (vga_hsync),
+      .vsync (vga_vsync),
 
-   dual_port_bram videomem (
-     .clk_a   (videomem_clk & videomem_en),
-     .we_a    (videomem_we),
-   //  .addr_a  (videomem_addr[VIDEOMEM_SIZE - 1:2]),
-     .addr_a  (write_to),
-     .write_a (dma_data),        // writing to the BRAM
-     .read_a  (videomem_rddata),  // reading from the BRAM
-
-     .clk_b   (vga_clk),
-     .we_b    (4'd0),
-     .addr_b  (vga_addr),
-     .write_b (32'd0),
-     .read_b  (vga_color)
+      .mem_clk(videomem_clk),
+      .mem_en (videomem_en),
+      .mem_we (videomem_we),
+      .mem_addr (videomem_addr[VIDEOMEM_SIZE - 1:2]),
+      .mem_write (dma_data),
+      .mem_read (videomem_rddata)
    );
-
-   (* keep="soft" *)
-   logic [3:0] redlo, greenlo, bluelo;
-   logic [15:0] vga_x, vga_y;
-
-   // VGA
-   vga_controller vga(
-     .clk (clk),
-     .rst (rst),
-     .red ({vga_red, redlo}),
-     .green ({vga_green, greenlo}),
-     .blue ({vga_blue, bluelo}),
-     .hsync (vga_hsync),
-     .vsync (vga_vsync),
-     .clkr (vga_clk),
-     .color (vga_color[23:0]),
-     .x (vga_x),
-     .y (vga_y)
-   );
-
-   assign vga_addr = {vga_y[7:0], vga_x[7:0]};
 
    /////////////////////////////////////////////////////////////
    // SPI
