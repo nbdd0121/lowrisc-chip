@@ -257,7 +257,6 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
       }
     }
   }
-
 }
 
 object Run extends App with FileSystemUtilities {
