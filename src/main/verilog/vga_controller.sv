@@ -42,9 +42,9 @@ module video_unit (
     input  wire clk,
     // Reset, active high
     input  wire rst,
-    output wire [7:0] red,
-    output wire [7:0] green,
-    output wire [7:0] blue,
+    output reg  [7:0] red,
+    output reg  [7:0] green,
+    output reg  [7:0] blue,
     output reg  hsync,
     output reg  vsync,
 
@@ -59,7 +59,7 @@ module video_unit (
 
 /* VGA controller related logic */
 logic en;
-logic [15:0] x ,y;
+logic [15:0] x, y;
 logic [31:0] rawcolor;
 logic [23:0] color;
 logic [14:0] scraddr;
@@ -75,6 +75,10 @@ reg   [31:0] cr_read;
 assign is_mem_access = mem_addr[15] == 0;
 assign mem_read = is_mem_access ? bram_read : cr_read;
 
+/* Divided clocks */
+logic clk40, clk65, clk74, clk83, clk108, clk148, clk193;
+logic pxl_clk;
+
 /* Control registers */
 reg   [14:0] cr_base;
 reg   [14:0] cr_base_delay;
@@ -82,8 +86,48 @@ reg   [14:0] cr_base_delay;
 reg   [1:0]  cr_depth;
 reg   [1:0]  cr_depth_delay;
 
-localparam CR_BASE  = 15'd0;
-localparam CR_DEPTH = 15'd1;
+reg   [2:0]  cr_pxlfreq;
+
+// hsync, vsync polarity. 0 selects positive, 1 selects negative
+logic cr_hsync_pol;
+logic cr_vsync_pol;
+
+logic cr_enable;
+
+// CRT registers
+logic [15:0] cr_h_total;
+logic [15:0] cr_h_end_disp;
+logic [15:0] cr_h_srt_sync;
+logic [15:0] cr_h_end_sync;
+logic [15:0] cr_v_total;
+logic [15:0] cr_v_end_disp;
+logic [15:0] cr_v_srt_sync;
+logic [15:0] cr_v_end_sync;
+
+/* Constants and enumerations */
+localparam CR_BASE     = 15'd0;
+localparam CR_DEPTH    = 15'd1;
+localparam CR_ENABLE   = 15'd2;
+localparam CR_POLARITY = 15'd3;
+localparam CR_PXLFREQ  = 15'd4;
+
+localparam CR_H_TOTAL    = 15'h10;
+localparam CR_H_END_DISP = 15'h11;
+localparam CR_H_SRT_SYNC = 15'h12;
+localparam CR_H_END_SYNC = 15'h13;
+localparam CR_V_TOTAL    = 15'h14;
+localparam CR_V_END_DISP = 15'h15;
+localparam CR_V_SRT_SYNC = 15'h16;
+localparam CR_V_END_SYNC = 15'h17;
+
+localparam PXLFREQ_25  = 3'b000;
+localparam PXLFREQ_40  = 3'b001;
+localparam PXLFREQ_65  = 3'b010;
+localparam PXLFREQ_74  = 3'b011;
+localparam PXLFREQ_83  = 3'b100;
+localparam PXLFREQ_108 = 3'b101;
+localparam PXLFREQ_148 = 3'b110;
+localparam PXLFREQ_193 = 3'b111;
 
 /* Address calculation */
 always_comb begin
@@ -119,7 +163,7 @@ function [23:0] unpack8 (input [7:0] color);
     };
 endfunction
 
-always_ff @(posedge clk)
+always_ff @(posedge pxl_clk)
     scraddr_delayed <= scraddr;
 
 always_comb begin
@@ -149,32 +193,99 @@ always_comb begin
     endcase
 end
 
+/* Clock freq choosing */
+always_comb begin
+    case (cr_pxlfreq)
+        PXLFREQ_25:
+            pxl_clk = clk;
+        PXLFREQ_40:
+            pxl_clk = clk40;
+        PXLFREQ_65:
+            pxl_clk = clk65;
+        PXLFREQ_74:
+            pxl_clk = clk74;
+        PXLFREQ_83:
+            pxl_clk = clk83;
+        PXLFREQ_108:
+            pxl_clk = clk108;
+        PXLFREQ_148:
+            pxl_clk = clk148;
+        PXLFREQ_193:
+            pxl_clk = clk193;
+    endcase
+end
+
 /* Control register R/W */
 always_ff @(posedge mem_clk or posedge rst)
     if (rst) begin
-        cr_base_delay <= 15'd0;
-        cr_depth_delay <= 2'd0;
+        cr_base_delay      <= 15'd0;
+        cr_depth_delay     <= 2'd0;
+        cr_enable          <= 1'd1;
+        cr_pxlfreq   <= PXLFREQ_65;
+        cr_hsync_pol <= 1'd1;
+        cr_vsync_pol <= 1'd1;
+
+        cr_h_total     <= 16'd1344;
+        cr_h_end_disp  <= 16'd1024;
+        cr_h_srt_sync  <= 16'd1048;
+        cr_h_end_sync  <= 16'd1184;
+        cr_v_total     <= 16'd806;
+        cr_v_end_disp  <= 16'd768;
+        cr_v_srt_sync  <= 16'd771;
+        cr_v_end_sync  <= 16'd777;
     end
     else if (mem_en & !is_mem_access) begin
         case (mem_addr[14:0])
-            CR_BASE: begin
-                cr_read <= {17'd0, cr_base};
-                if (&mem_we) cr_base_delay <= mem_write[14:0];
-            end
-            CR_DEPTH: begin
-                cr_read <= {30'd0, cr_depth};
-                if (&mem_we) cr_depth_delay <= mem_write[1:0];
-            end
-            default:
-                cr_read <= 32'd0;
+            CR_BASE: cr_read <= {17'd0, cr_base};
+            CR_DEPTH: cr_read <= {30'd0, cr_depth};
+            CR_ENABLE: cr_read <= {31'd0, cr_enable};
+            CR_POLARITY: cr_read <= {30'd0, cr_vsync_pol, cr_hsync_pol};
+            CR_PXLFREQ: cr_read <= {29'd0, cr_pxlfreq};
+
+            CR_H_TOTAL   : cr_read <= {16'd0, cr_h_total   };
+            CR_H_END_DISP: cr_read <= {16'd0, cr_h_end_disp};
+            CR_H_SRT_SYNC: cr_read <= {16'd0, cr_h_srt_sync};
+            CR_H_END_SYNC: cr_read <= {16'd0, cr_h_end_sync};
+            CR_V_TOTAL   : cr_read <= {16'd0, cr_v_total   };
+            CR_V_END_DISP: cr_read <= {16'd0, cr_v_end_disp};
+            CR_V_SRT_SYNC: cr_read <= {16'd0, cr_v_srt_sync};
+            CR_V_END_SYNC: cr_read <= {16'd0, cr_v_end_sync};
+            default: cr_read <= 32'd0;
         endcase
+
+        if (&mem_we)
+            case (mem_addr[14:0])
+                CR_BASE: cr_base_delay <= mem_write[14:0];
+                CR_DEPTH: cr_depth_delay <= mem_write[1:0];
+                CR_ENABLE: cr_enable <= mem_write[0];
+                CR_POLARITY:
+                    if (!cr_enable) begin
+                        cr_vsync_pol <= mem_write[1];
+                        cr_hsync_pol <= mem_write[0];
+                    end
+                CR_PXLFREQ   : if (!cr_enable) cr_pxlfreq    <= mem_write[2:0];
+                CR_H_TOTAL   : if (!cr_enable) cr_h_total    <= mem_write[15:0];
+                CR_H_END_DISP: if (!cr_enable) cr_h_end_disp <= mem_write[15:0];
+                CR_H_SRT_SYNC: if (!cr_enable) cr_h_srt_sync <= mem_write[15:0];
+                CR_H_END_SYNC: if (!cr_enable) cr_h_end_sync <= mem_write[15:0];
+                CR_V_TOTAL   : if (!cr_enable) cr_v_total    <= mem_write[15:0];
+                CR_V_END_DISP: if (!cr_enable) cr_v_end_disp <= mem_write[15:0];
+                CR_V_SRT_SYNC: if (!cr_enable) cr_v_srt_sync <= mem_write[15:0];
+                CR_V_END_SYNC: if (!cr_enable) cr_v_end_sync <= mem_write[15:0];
+            endcase
     end
 
 // Delay write to cr_base until next vsync to avoid tearing
-always_ff @(posedge clk)
-    if (vsync == 0) begin
-        cr_base  <= cr_base_delay;
-        cr_depth <= cr_depth_delay;
+always_ff @(posedge pxl_clk or posedge rst)
+    if (rst) begin
+        cr_base      <= 15'd0;
+        cr_depth     <= 2'd0;
+    end
+    else begin
+        if (vsync == !cr_vsync_pol) begin
+            cr_base    <= cr_base_delay;
+            cr_depth   <= cr_depth_delay;
+        end
     end
 
 
@@ -188,7 +299,7 @@ dual_port_bram #(
     .write_a (mem_write),
     .read_a  (bram_read),
 
-    .clk_b   (clk),
+    .clk_b   (pxl_clk),
     .en_b    (en),
     .we_b    (4'd0),
     .addr_b  (addr),
@@ -196,64 +307,38 @@ dual_port_bram #(
     .read_b  (rawcolor)
 );
 
-vga_controller vga(
-    .*
+clk_wiz_vga clk_conv(
+    .clk_in1  (clk),
+    .reset    (rst),
+    .clk_out1 (clk40),
+    .clk_out2 (clk65),
+    .clk_out3 (clk74),
+    .clk_out4 (clk83),
+    .clk_out5 (clk108),
+    .clk_out6 (clk148),
+    .clk_out7 (clk193)
 );
 
-endmodule
-
-
-module vga_controller # (
-    parameter H_SYNC_ACTIVE = 0,
-    parameter V_SYNC_ACTIVE = 0,
-
-    parameter H_FRONT_PORCH = 16'd16,
-    parameter H_SYNC_PULSE  = 16'd96,
-    parameter H_FRAME_WIDTH = 16'd640,
-    parameter H_BACK_PORCH  = 16'd48,
-    parameter H_TOTAL_WIDTH = 16'd800,
-
-    parameter V_FRONT_PORCH = 16'd10,
-    parameter V_SYNC_PULSE  = 16'd2,
-    parameter V_FRAME_WIDTH = 16'd480,
-    parameter V_BACK_PORCH  = 16'd33,
-    parameter V_TOTAL_WIDTH = 16'd525
-) (
-    input  wire clk,
-    // Reset, active high
-    input  wire rst,
-    output wire [7:0] red,
-    output wire [7:0] green,
-    output wire [7:0] blue,
-    output reg  hsync,
-    output reg  vsync,
-
-    // External image provider
-    output wire en,
-    output wire [15:0] x,
-    output wire [15:0] y,
-    input  wire [23:0] color
-);
-
+/* VGA Controller */
 reg [15:0] h_counter;
 reg [15:0] v_counter;
 reg hsync_delay, vsync_delay;
 reg en_delayed;
 
 // Logic to update h and v counters
-always_ff @(posedge clk or posedge rst)
+always_ff @(posedge pxl_clk or posedge rst)
 begin
-    if (rst)
+    if (rst | !cr_enable)
         begin
             h_counter <= 0;
             v_counter <= 0;
         end
     else
         begin
-            if (h_counter == H_TOTAL_WIDTH - 1)
+            if (h_counter == cr_h_total - 1)
                 begin
                     h_counter <= 0;
-                    if (v_counter == V_TOTAL_WIDTH - 1)
+                    if (v_counter == cr_v_total - 1)
                         v_counter <= 0;
                     else
                         v_counter <= v_counter + 1;
@@ -267,25 +352,29 @@ end
 
 // This delays the generation of hsync and vsync signals by one clock cycle
 // since we need one clock cycle to get the RGB data
-always_ff @(posedge clk)
+always_ff @(posedge pxl_clk)
 begin
     hsync <= hsync_delay;
-    if (h_counter >= H_FRAME_WIDTH + H_FRONT_PORCH && h_counter < H_FRAME_WIDTH + H_FRONT_PORCH + H_SYNC_PULSE)
-        hsync_delay <= H_SYNC_ACTIVE;
+    if (!cr_enable)
+        hsync_delay <= 0;
+    else if (h_counter >= cr_h_srt_sync && h_counter < cr_h_end_sync)
+        hsync_delay <= !cr_hsync_pol;
     else
-        hsync_delay <= !H_SYNC_ACTIVE;
+        hsync_delay <= cr_hsync_pol;
 end
 
-always_ff @(posedge clk)
+always_ff @(posedge pxl_clk)
 begin
     vsync <= vsync_delay;
-    if (v_counter >= V_FRAME_WIDTH + V_FRONT_PORCH && v_counter < V_FRAME_WIDTH + V_FRONT_PORCH + V_SYNC_PULSE)
-        vsync_delay <= V_SYNC_ACTIVE;
+    if (!cr_enable)
+        vsync_delay <= 0;
+    else if (v_counter >= cr_v_srt_sync && v_counter < cr_v_end_sync)
+        vsync_delay <= !cr_vsync_pol;
     else
-        vsync_delay <= !V_SYNC_ACTIVE;
+        vsync_delay <= cr_vsync_pol;
 end
 
-always_ff @(posedge clk) begin
+always_ff @(posedge pxl_clk) begin
     en_delayed <= en;
 end
 
@@ -296,11 +385,11 @@ assign x = en ? h_counter : 0;
 assign y = en ? v_counter : 0;
 
 // Enable image output
-assign en = h_counter < H_FRAME_WIDTH && v_counter < V_FRAME_WIDTH;
+assign en = h_counter < cr_h_end_disp && v_counter < cr_v_end_disp;
 
 // Output color if enabled
-assign red   = en_delayed ? color[23:16] : 0;
-assign green = en_delayed ? color[15: 8] : 0;
-assign blue  = en_delayed ? color[ 7: 0] : 0;
+assign red   = en_delayed & cr_enable ? color[23:16] : 0;
+assign green = en_delayed & cr_enable ? color[15: 8] : 0;
+assign blue  = en_delayed & cr_enable ? color[ 7: 0] : 0;
 
 endmodule
