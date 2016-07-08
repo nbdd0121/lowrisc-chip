@@ -22,17 +22,17 @@ reg [DATA_WIDTH - 1:0] mem [0:2 ** ADDR_WIDTH - 1];
 
 always_ff @(posedge clk_a) 
 begin
-	read_a <= mem[addr_a];
-	foreach(we_a[i])
-		if(we_a[i])
-			mem[addr_a][i*8+:8] <= write_a[i*8+:8];
+    read_a <= mem[addr_a];
+    foreach(we_a[i])
+        if(we_a[i])
+            mem[addr_a][i*8+:8] <= write_a[i*8+:8];
 end
 
 always_ff @(posedge clk_b) begin
-	read_b <= mem[addr_b];
-	foreach(we_b[i])
-		if(we_b[i])
-			mem[addr_b][i*8+:8] <= write_b[i*8+:8];
+    read_b <= mem[addr_b];
+    foreach(we_b[i])
+        if(we_b[i])
+            mem[addr_b][i*8+:8] <= write_b[i*8+:8];
 end
 
 initial $readmemh(DEFAULT_CONTENT, mem);

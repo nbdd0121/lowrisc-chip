@@ -464,8 +464,8 @@ module chip_top
    //    .bram_rddata_a   ( videomem_rddata             )
    //    );
    
-   localparam LOWRISC_TILELINK_DATA_WIDTH = 64;
-   localparam VIDEOMEM_SIZE = 18;
+   localparam LOWRISC_AXI_DATA_WIDTH = 64;
+   localparam VIDEOMEM_SIZE          = 18;
 
    logic        fetch_data;
    logic [15:0] read_from;
@@ -473,12 +473,12 @@ module chip_top
    logic [15:0] write_to;
    logic        rd_en;
 
-   logic [LOWRISC_TILELINK_DATA_WIDTH-1:0] dma_data;
-   logic [31:0]                             videomem_rddata;
-   logic videomem_we;
+   logic [LOWRISC_AXI_DATA_WIDTH-1:0] dma_data;
+   logic [31:0]                       videomem_rddata;
+   logic                              videomem_we;
 
    video_dma_controller  #(
-         .LOWRISC_TILELINK_DATA_WIDTH(LOWRISC_TILELINK_DATA_WIDTH),
+         .LOWRISC_AXI_DATA_WIDTH(LOWRISC_AXI_DATA_WIDTH),
          .VIDEOMEM_SIZE(VIDEOMEM_SIZE)
       )
       video_dma_controller_0 (
@@ -497,8 +497,8 @@ module chip_top
       );
 
 
-   logic [VIDEOMEM_SIZE-1:0]                 videomem_addr;
-   logic [LOWRISC_TILELINK_DATA_WIDTH-1:0]  videomem_rddata; // currently unused (but will be used in accelerator)
+   logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
+   logic [LOWRISC_AXI_DATA_WIDTH-1:0]  videomem_rddata; // currently unused (but will be used in accelerator)
 
    video_unit video (
       .clk (clk),
