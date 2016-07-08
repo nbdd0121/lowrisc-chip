@@ -37,6 +37,39 @@ initial $readmemh(DEFAULT_CONTENT, mem);
 endmodule
 
 
+module clk_en_gen #(
+    parameter INPUT_FREQ  = 128,
+    parameter INPUT_WIDTH = 8,
+    parameter WIDTH = 8
+) (
+    input  wire clk,
+    input  wire rst,
+    input  wire [INPUT_WIDTH - 1:0] freq,
+    output reg  en
+);
+
+logic [WIDTH - 1:0] counter, counter_nxt;
+
+assign counter_nxt = counter + freq;
+
+always_ff @(posedge clk or posedge rst) begin
+    if (rst) begin
+        counter <= 0;
+        en <= 1;
+    end
+    else if (counter_nxt >= INPUT_FREQ) begin
+        counter <= counter_nxt - INPUT_FREQ;
+        en <= 1;
+    end
+    else begin
+        counter <= counter_nxt;
+        en <= 0;
+    end
+end
+
+endmodule
+
+
 module video_unit (
     /*  VGA IOs */
     input  wire clk,
@@ -59,6 +92,8 @@ module video_unit (
 
 /* VGA controller related logic */
 logic en;
+logic pxl_clk;
+logic pxl_clk_en;
 logic [15:0] x, y;
 logic [31:0] rawcolor;
 logic [23:0] color;
@@ -75,10 +110,6 @@ reg   [31:0] cr_read;
 assign is_mem_access = mem_addr[15] == 0;
 assign mem_read = is_mem_access ? bram_read : cr_read;
 
-/* Divided clocks */
-logic clk40, clk65, clk74, clk83, clk108, clk148, clk193;
-logic pxl_clk;
-
 /* Control registers */
 reg   [14:0] cr_base;
 reg   [14:0] cr_base_delay;
@@ -86,13 +117,12 @@ reg   [14:0] cr_base_delay;
 reg   [1:0]  cr_depth;
 reg   [1:0]  cr_depth_delay;
 
-reg   [2:0]  cr_pxlfreq;
+logic cr_enable;
+logic [7:0] cr_pxlfreq;
 
 // hsync, vsync polarity. 0 selects positive, 1 selects negative
 logic cr_hsync_pol;
 logic cr_vsync_pol;
-
-logic cr_enable;
 
 // CRT registers
 logic [15:0] cr_h_total;
@@ -119,15 +149,6 @@ localparam CR_V_TOTAL    = 15'h14;
 localparam CR_V_END_DISP = 15'h15;
 localparam CR_V_SRT_SYNC = 15'h16;
 localparam CR_V_END_SYNC = 15'h17;
-
-localparam PXLFREQ_25  = 3'b000;
-localparam PXLFREQ_40  = 3'b001;
-localparam PXLFREQ_65  = 3'b010;
-localparam PXLFREQ_74  = 3'b011;
-localparam PXLFREQ_83  = 3'b100;
-localparam PXLFREQ_108 = 3'b101;
-localparam PXLFREQ_148 = 3'b110;
-localparam PXLFREQ_193 = 3'b111;
 
 /* Address calculation */
 always_comb begin
@@ -164,7 +185,8 @@ function [23:0] unpack8 (input [7:0] color);
 endfunction
 
 always_ff @(posedge pxl_clk)
-    scraddr_delayed <= scraddr;
+    if (pxl_clk_en)
+        scraddr_delayed <= scraddr;
 
 always_comb begin
     case (cr_depth)
@@ -194,36 +216,22 @@ always_comb begin
 end
 
 /* Clock freq choosing */
-always_comb begin
-    case (cr_pxlfreq)
-        PXLFREQ_25:
-            pxl_clk = clk;
-        PXLFREQ_40:
-            pxl_clk = clk40;
-        PXLFREQ_65:
-            pxl_clk = clk65;
-        PXLFREQ_74:
-            pxl_clk = clk74;
-        PXLFREQ_83:
-            pxl_clk = clk83;
-        PXLFREQ_108:
-            pxl_clk = clk108;
-        PXLFREQ_148:
-            pxl_clk = clk148;
-        PXLFREQ_193:
-            pxl_clk = clk193;
-    endcase
-end
+clk_en_gen clk_gen (
+    .clk  (pxl_clk),
+    .rst  (rst),
+    .freq (cr_pxlfreq),
+    .en   (pxl_clk_en)
+);
 
 /* Control register R/W */
 always_ff @(posedge mem_clk or posedge rst)
     if (rst) begin
-        cr_base_delay      <= 15'd0;
-        cr_depth_delay     <= 2'd0;
-        cr_enable          <= 1'd1;
-        cr_pxlfreq   <= PXLFREQ_65;
-        cr_hsync_pol <= 1'd1;
-        cr_vsync_pol <= 1'd1;
+        cr_base_delay  <= 15'd0;
+        cr_depth_delay <= 2'd0;
+        cr_enable      <= 1'd1;
+        cr_pxlfreq     <= 8'd65;
+        cr_hsync_pol   <= 1'd1;
+        cr_vsync_pol   <= 1'd1;
 
         cr_h_total     <= 16'd1344;
         cr_h_end_disp  <= 16'd1024;
@@ -240,7 +248,7 @@ always_ff @(posedge mem_clk or posedge rst)
             CR_DEPTH: cr_read <= {30'd0, cr_depth};
             CR_ENABLE: cr_read <= {31'd0, cr_enable};
             CR_POLARITY: cr_read <= {30'd0, cr_vsync_pol, cr_hsync_pol};
-            CR_PXLFREQ: cr_read <= {29'd0, cr_pxlfreq};
+            CR_PXLFREQ: cr_read <= {24'd0, cr_pxlfreq};
 
             CR_H_TOTAL   : cr_read <= {16'd0, cr_h_total   };
             CR_H_END_DISP: cr_read <= {16'd0, cr_h_end_disp};
@@ -263,7 +271,7 @@ always_ff @(posedge mem_clk or posedge rst)
                         cr_vsync_pol <= mem_write[1];
                         cr_hsync_pol <= mem_write[0];
                     end
-                CR_PXLFREQ   : if (!cr_enable) cr_pxlfreq    <= mem_write[2:0];
+                CR_PXLFREQ   : if (!cr_enable) cr_pxlfreq    <= mem_write[ 7:0];
                 CR_H_TOTAL   : if (!cr_enable) cr_h_total    <= mem_write[15:0];
                 CR_H_END_DISP: if (!cr_enable) cr_h_end_disp <= mem_write[15:0];
                 CR_H_SRT_SYNC: if (!cr_enable) cr_h_srt_sync <= mem_write[15:0];
@@ -281,8 +289,8 @@ always_ff @(posedge pxl_clk or posedge rst)
         cr_base      <= 15'd0;
         cr_depth     <= 2'd0;
     end
-    else begin
-        if (vsync == !cr_vsync_pol) begin
+    else if (pxl_clk_en) begin
+        if (vsync == !cr_vsync_pol | !cr_enable) begin
             cr_base    <= cr_base_delay;
             cr_depth   <= cr_depth_delay;
         end
@@ -300,7 +308,7 @@ dual_port_bram #(
     .read_a  (bram_read),
 
     .clk_b   (pxl_clk),
-    .en_b    (en),
+    .en_b    (en & pxl_clk_en),
     .we_b    (4'd0),
     .addr_b  (addr),
     .write_b (32'd0),
@@ -310,13 +318,7 @@ dual_port_bram #(
 clk_wiz_vga clk_conv(
     .clk_in1  (clk),
     .reset    (rst),
-    .clk_out1 (clk40),
-    .clk_out2 (clk65),
-    .clk_out3 (clk74),
-    .clk_out4 (clk83),
-    .clk_out5 (clk108),
-    .clk_out6 (clk148),
-    .clk_out7 (clk193)
+    .clk_out1 (pxl_clk)
 );
 
 /* VGA Controller */
@@ -333,49 +335,53 @@ begin
             h_counter <= 0;
             v_counter <= 0;
         end
-    else
-        begin
-            if (h_counter == cr_h_total - 1)
-                begin
-                    h_counter <= 0;
-                    if (v_counter == cr_v_total - 1)
-                        v_counter <= 0;
-                    else
-                        v_counter <= v_counter + 1;
-                end
-            else
-                begin
-                    h_counter <= h_counter + 1;
-                end
-        end
+    else if (pxl_clk_en) begin
+        if (h_counter == cr_h_total - 1)
+            begin
+                h_counter <= 0;
+                if (v_counter == cr_v_total - 1)
+                    v_counter <= 0;
+                else
+                    v_counter <= v_counter + 1;
+            end
+        else
+            begin
+                h_counter <= h_counter + 1;
+            end
+    end
 end
 
 // This delays the generation of hsync and vsync signals by one clock cycle
 // since we need one clock cycle to get the RGB data
 always_ff @(posedge pxl_clk)
 begin
-    hsync <= hsync_delay;
-    if (!cr_enable)
-        hsync_delay <= 0;
-    else if (h_counter >= cr_h_srt_sync && h_counter < cr_h_end_sync)
-        hsync_delay <= !cr_hsync_pol;
-    else
-        hsync_delay <= cr_hsync_pol;
+    if (pxl_clk_en) begin
+        hsync <= hsync_delay;
+        if (!cr_enable)
+            hsync_delay <= 0;
+        else if (h_counter >= cr_h_srt_sync && h_counter < cr_h_end_sync)
+            hsync_delay <= !cr_hsync_pol;
+        else
+            hsync_delay <= cr_hsync_pol;
+    end
 end
 
 always_ff @(posedge pxl_clk)
 begin
-    vsync <= vsync_delay;
-    if (!cr_enable)
-        vsync_delay <= 0;
-    else if (v_counter >= cr_v_srt_sync && v_counter < cr_v_end_sync)
-        vsync_delay <= !cr_vsync_pol;
-    else
-        vsync_delay <= cr_vsync_pol;
+    if (pxl_clk_en) begin
+        vsync <= vsync_delay;
+        if (!cr_enable)
+            vsync_delay <= 0;
+        else if (v_counter >= cr_v_srt_sync && v_counter < cr_v_end_sync)
+            vsync_delay <= !cr_vsync_pol;
+        else
+            vsync_delay <= cr_vsync_pol;
+    end
 end
 
 always_ff @(posedge pxl_clk) begin
-    en_delayed <= en;
+    if (pxl_clk_en)
+        en_delayed <= en;
 end
 
 // Wire to image provider
