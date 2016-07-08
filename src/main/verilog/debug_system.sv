@@ -67,8 +67,6 @@ module debug_system
    logic  rst;
    assign rst = ~rstn;
 
-   assign uart_irq = 0;
-   
    glip_channel #(.WIDTH(16)) fifo_in (.*); 
    glip_channel #(.WIDTH(16)) fifo_out (.*);    
    
@@ -90,7 +88,7 @@ module debug_system
    assign fifo_out.ready = fifo_out_ready;
 
    glip_uart_toplevel
-     #(.WIDTH(16), .BAUD(1000000), .FREQ(25000000))
+     #(.WIDTH(16), .BAUD(3000000), .FREQ(25000000))
    u_glip(.clk_io    (clk),
           .clk_logic (clk),
           .rst       (rst),
@@ -160,7 +158,7 @@ module debug_system
    osd_dem_uart_nasti
      u_uart (.*,
              .id ( id_map[2] ),
-
+             .irq (uart_irq),
              .ar_addr (uart_ar_addr[4:2]),
              .ar_valid (uart_ar_valid),
              .ar_ready (uart_ar_ready),
