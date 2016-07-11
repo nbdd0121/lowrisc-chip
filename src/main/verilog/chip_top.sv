@@ -355,37 +355,25 @@ module chip_top
    logic [BRAM_SIZE-1:0]               ram_addr;
    logic [`LOWRISC_IO_DAT_WIDTH-1:0]   ram_wrdata, ram_rddata;
 
-   axi_bram_ctrl_0 BramCtl
+   nasti_lite_bram_ctrl
+     #(
+       .ADDR_WIDTH      ( `ROCKET_PADDR_WIDTH     ),
+       .DATA_WIDTH      ( `LOWRISC_IO_DAT_WIDTH   ),
+       .BRAM_ADDR_WIDTH (  BRAM_SIZE              ))
+   bram_ctrl
      (
-      .s_axi_aclk      ( clk                     ),
-      .s_axi_aresetn   ( rstn                    ),
-      .s_axi_araddr    ( io_bram_lite.ar_addr    ),
-      .s_axi_arprot    ( 3'b000                  ),
-      .s_axi_arready   ( io_bram_lite.ar_ready   ),
-      .s_axi_arvalid   ( io_bram_lite.ar_valid   ),
-      .s_axi_awaddr    ( io_bram_lite.aw_addr    ),
-      .s_axi_awprot    ( 3'b000                  ),
-      .s_axi_awready   ( io_bram_lite.aw_ready   ),
-      .s_axi_awvalid   ( io_bram_lite.aw_valid   ),
-      .s_axi_bready    ( io_bram_lite.b_ready    ),
-      .s_axi_bresp     ( io_bram_lite.b_resp     ),
-      .s_axi_bvalid    ( io_bram_lite.b_valid    ),
-      .s_axi_rdata     ( io_bram_lite.r_data     ),
-      .s_axi_rready    ( io_bram_lite.r_ready    ),
-      .s_axi_rresp     ( io_bram_lite.r_resp     ),
-      .s_axi_rvalid    ( io_bram_lite.r_valid    ),
-      .s_axi_wdata     ( io_bram_lite.w_data     ),
-      .s_axi_wready    ( io_bram_lite.w_ready    ),
-      .s_axi_wstrb     ( io_bram_lite.w_strb     ),
-      .s_axi_wvalid    ( io_bram_lite.w_valid    ),
-      .bram_rst_a      ( ram_rst                 ),
-      .bram_clk_a      ( ram_clk                 ),
-      .bram_en_a       ( ram_en                  ),
-      .bram_we_a       ( ram_we                  ),
-      .bram_addr_a     ( ram_addr                ),
-      .bram_wrdata_a   ( ram_wrdata              ),
-      .bram_rddata_a   ( ram_rddata              )
+      .s_nasti_aclk     ( clk                     ),
+      .s_nasti_aresetn  ( rstn                    ),
+      .s_nasti          ( io_bram_lite            ),
+      .bram_rst         ( ram_rst                 ),
+      .bram_clk         ( ram_clk                 ),
+      .bram_en          ( ram_en                  ),
+      .bram_we          ( ram_we                  ),
+      .bram_addr        ( ram_addr                ),
+      .bram_wrdata      ( ram_wrdata              ),
+      .bram_rddata      ( ram_rddata              )
       );
+
 
    // the inferred BRAMs
    reg   [BRAM_WIDTH-1:0]         ram [0 : BRAM_LINE-1];
@@ -432,36 +420,23 @@ module chip_top
    logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
    logic [`LOWRISC_IO_DAT_WIDTH-1:0]   videomem_wrdata, videomem_rddata;
 
-   axi_bram_ctrl_1 videomem_ctl
+   nasti_lite_bram_ctrl
+     #(
+       .ADDR_WIDTH      ( `ROCKET_PADDR_WIDTH     ),
+       .DATA_WIDTH      ( `LOWRISC_IO_DAT_WIDTH   ),
+       .BRAM_ADDR_WIDTH (  VIDEOMEM_SIZE          ))
+   videomem_ctl
      (
-      .s_axi_aclk      ( clk                         ),
-      .s_axi_aresetn   ( rstn                        ),
-      .s_axi_araddr    ( io_videomem_lite.ar_addr    ),
-      .s_axi_arprot    ( 3'b000                      ),
-      .s_axi_arready   ( io_videomem_lite.ar_ready   ),
-      .s_axi_arvalid   ( io_videomem_lite.ar_valid   ),
-      .s_axi_awaddr    ( io_videomem_lite.aw_addr    ),
-      .s_axi_awprot    ( 3'b000                      ),
-      .s_axi_awready   ( io_videomem_lite.aw_ready   ),
-      .s_axi_awvalid   ( io_videomem_lite.aw_valid   ),
-      .s_axi_bready    ( io_videomem_lite.b_ready    ),
-      .s_axi_bresp     ( io_videomem_lite.b_resp     ),
-      .s_axi_bvalid    ( io_videomem_lite.b_valid    ),
-      .s_axi_rdata     ( io_videomem_lite.r_data     ),
-      .s_axi_rready    ( io_videomem_lite.r_ready    ),
-      .s_axi_rresp     ( io_videomem_lite.r_resp     ),
-      .s_axi_rvalid    ( io_videomem_lite.r_valid    ),
-      .s_axi_wdata     ( io_videomem_lite.w_data     ),
-      .s_axi_wready    ( io_videomem_lite.w_ready    ),
-      .s_axi_wstrb     ( io_videomem_lite.w_strb     ),
-      .s_axi_wvalid    ( io_videomem_lite.w_valid    ),
-      .bram_rst_a      ( videomem_rst                ),
-      .bram_clk_a      ( videomem_clk                ),
-      .bram_en_a       ( videomem_en                 ),
-      .bram_we_a       ( videomem_we                 ),
-      .bram_addr_a     ( videomem_addr               ),
-      .bram_wrdata_a   ( videomem_wrdata             ),
-      .bram_rddata_a   ( videomem_rddata             )
+      .s_nasti_aclk     ( clk                     ),
+      .s_nasti_aresetn  ( rstn                    ),
+      .s_nasti          ( io_videomem_lite        ),
+      .bram_rst         ( videomem_rst            ),
+      .bram_clk         ( videomem_clk            ),
+      .bram_en          ( videomem_en             ),
+      .bram_we          ( videomem_we             ),
+      .bram_addr        ( videomem_addr           ),
+      .bram_wrdata      ( videomem_wrdata         ),
+      .bram_rddata      ( videomem_rddata         )
       );
 
    (* keep="soft" *)
