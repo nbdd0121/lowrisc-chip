@@ -34,7 +34,7 @@ class BaseConfig extends Config (
     lazy val externalIOAddrMap: AddrMap = {
       val entries = collection.mutable.ArrayBuffer[AddrMapEntry]()
       if (site(UseBootRAM)) {
-        entries += AddrMapEntry("bram", MemSize(1<<16, 1<<29, MemAttr(AddrMapProt.RWX)))
+        entries += AddrMapEntry("bram", MemSize(1<<16, 1<<30, MemAttr(AddrMapProt.RWX)))
         Dump("ADD_BRAM", true)
       }
 
@@ -58,7 +58,7 @@ class BaseConfig extends Config (
 
     lazy val (globalAddrMap, globalAddrHashMap) = {
       val memSize:BigInt = site(RAMSize)
-      val memAlign = 1L << 30
+      val memAlign = BigInt(1L << 30)
       val io = AddrMap(
         AddrMapEntry("int", MemSubmap(internalIOAddrMap.computeSize, internalIOAddrMap)),
         AddrMapEntry("ext", MemSubmap(externalIOAddrMap.computeSize, externalIOAddrMap, true)))
@@ -242,7 +242,7 @@ class BaseConfig extends Config (
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanks) + 1,
           nCachingClients = site(NTiles),
-          nCachelessClients = if(site(UseDebug)) site(NTiles) + 1 else site(NTiles),
+          nCachelessClients = if(site(UseDebug)) site(NTiles) + 2 else site(NTiles) + 1,
           maxClientXacts = site(NMSHRs) + 1,
           maxClientsPerPort = 1,
           maxManagerXacts = site(NAcquireTransactors) + 2, // acquire, release, writeback
@@ -373,7 +373,7 @@ class WithDebugConfig extends Config (
     case DebugBaseID => 4
     case DebugSubIDSize => 2
     case DebugCtmScorBoardSize => site(NMSHRs)
-    case DebugStmCsrAddr => 0x8f0 // not synced with instruction.scala
+    case DebugStmCsrAddr => 0x8ff // not synced with instruction.scala
     case DebugRouterBufferSize => 4
   }
 )
@@ -406,9 +406,9 @@ class WithBootRAMConfig extends Config (
   }
 )
 
-class With256MRamConfig extends Config (
+class With128MRamConfig extends Config (
   (pname,site,here) => pname match {
-    case RAMSize => BigInt(1L << 28)  // 256 MB
+    case RAMSize => BigInt(1L << 27)  // 128 MB
   }
 )
 
@@ -416,11 +416,11 @@ class FPGAConfig extends
     Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new BaseConfig)
 
 class FPGADebugConfig extends
-    Config(new WithDebugConfig ++ new WithSPIConfig ++ new BaseConfig)
+    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new BaseConfig)
 
 class Nexys4Config extends
-    Config(new With256MRamConfig ++ new FPGAConfig)
+    Config(new With128MRamConfig ++ new FPGAConfig)
 
 class Nexys4DebugConfig extends
-    Config(new With256MRamConfig ++ new FPGADebugConfig)
+    Config(new With128MRamConfig ++ new FPGADebugConfig)
 

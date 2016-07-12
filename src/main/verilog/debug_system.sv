@@ -5,9 +5,11 @@ import dii_package::dii_flit;
 module debug_system
   #(parameter N_CORES        = 1,
     parameter MAM_DATA_WIDTH = 512,
-    parameter MAM_REGIONS    = 1,
+    parameter MAM_REGIONS    = 2,
     parameter MAM_BASE_ADDR0 = 0,
-    parameter MAM_MEM_SIZE0  = 1024*1024*1024,
+    parameter MAM_MEM_SIZE0  = 'h10000,
+    parameter MAM_BASE_ADDR1 = 'h40000000,
+    parameter MAM_MEM_SIZE1  = 'h8000000,
     parameter MAM_ADDR_WIDTH = 64)
   (
    input                        clk, rstn,
@@ -67,8 +69,6 @@ module debug_system
    logic  rst;
    assign rst = ~rstn;
 
-   assign uart_irq = 0;
-   
    glip_channel #(.WIDTH(16)) fifo_in (.*); 
    glip_channel #(.WIDTH(16)) fifo_out (.*);    
    
@@ -90,7 +90,7 @@ module debug_system
    assign fifo_out.ready = fifo_out_ready;
 
    glip_uart_toplevel
-     #(.WIDTH(16), .BAUD(1000000), .FREQ(25000000))
+     #(.WIDTH(16), .BAUD(3000000), .FREQ(25000000))
    u_glip(.clk_io    (clk),
           .clk_logic (clk),
           .rst       (rst),
@@ -160,7 +160,7 @@ module debug_system
    osd_dem_uart_nasti
      u_uart (.*,
              .id ( id_map[2] ),
-
+             .irq (uart_irq),
              .ar_addr (uart_ar_addr[4:2]),
              .ar_valid (uart_ar_valid),
              .ar_ready (uart_ar_ready),
@@ -187,6 +187,7 @@ module debug_system
    osd_mam
      #(.DATA_WIDTH(MAM_DATA_WIDTH), .REGIONS(MAM_REGIONS),
        .BASE_ADDR0(MAM_BASE_ADDR0), .MEM_SIZE0(MAM_MEM_SIZE0),
+       .BASE_ADDR1(MAM_BASE_ADDR1), .MEM_SIZE1(MAM_MEM_SIZE1),
        .ADDR_WIDTH(MAM_ADDR_WIDTH), .MAX_PKT_LEN(MAX_PKT_LEN))
    u_mam (.*,
           .id              ( id_map[3]        ),
