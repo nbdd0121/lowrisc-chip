@@ -38,8 +38,8 @@ class BaseConfig extends Config (
         Dump("ADD_BRAM", true)
       }
 
-      // Add 256KiB Video Memory
-      entries += AddrMapEntry("videomem", MemSize(1<<18, 1<<20, MemAttr(AddrMapProt.RW)))
+      // Video Controller
+      entries += AddrMapEntry("videomem", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
 
       if (site(UseHost)) {
         entries += AddrMapEntry("host", MemSize(1<<6, 1<<13, MemAttr(AddrMapProt.W)))

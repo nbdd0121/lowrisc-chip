@@ -433,45 +433,6 @@ module chip_top
        .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
    io_videomem_lite();
 
-   localparam VIDEOMEM_SIZE = 18;        // 2^18 -> 256 KiB
-
-   logic videomem_rst, videomem_clk, videomem_en;
-   logic [`LOWRISC_IO_DAT_WIDTH/8-1:0] videomem_we;
-   logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
-   logic [`LOWRISC_IO_DAT_WIDTH-1:0]   videomem_wrdata, videomem_rddata;
-
-   axi_bram_ctrl_1 videomem_ctl
-     (
-      .s_axi_aclk      ( clk                         ),
-      .s_axi_aresetn   ( rstn                        ),
-      .s_axi_araddr    ( io_videomem_lite.ar_addr    ),
-      .s_axi_arprot    ( 3'b000                      ),
-      .s_axi_arready   ( io_videomem_lite.ar_ready   ),
-      .s_axi_arvalid   ( io_videomem_lite.ar_valid   ),
-      .s_axi_awaddr    ( io_videomem_lite.aw_addr    ),
-      .s_axi_awprot    ( 3'b000                      ),
-      .s_axi_awready   ( io_videomem_lite.aw_ready   ),
-      .s_axi_awvalid   ( io_videomem_lite.aw_valid   ),
-      .s_axi_bready    ( io_videomem_lite.b_ready    ),
-      .s_axi_bresp     ( io_videomem_lite.b_resp     ),
-      .s_axi_bvalid    ( io_videomem_lite.b_valid    ),
-      .s_axi_rdata     ( io_videomem_lite.r_data     ),
-      .s_axi_rready    ( io_videomem_lite.r_ready    ),
-      .s_axi_rresp     ( io_videomem_lite.r_resp     ),
-      .s_axi_rvalid    ( io_videomem_lite.r_valid    ),
-      .s_axi_wdata     ( io_videomem_lite.w_data     ),
-      .s_axi_wready    ( io_videomem_lite.w_ready    ),
-      .s_axi_wstrb     ( io_videomem_lite.w_strb     ),
-      .s_axi_wvalid    ( io_videomem_lite.w_valid    ),
-      .bram_rst_a      ( videomem_rst                ),
-      .bram_clk_a      ( videomem_clk                ),
-      .bram_en_a       ( videomem_en                 ),
-      .bram_we_a       ( videomem_we                 ),
-      .bram_addr_a     ( videomem_addr               ),
-      .bram_wrdata_a   ( videomem_wrdata             ),
-      .bram_rddata_a   ( videomem_rddata             )
-      );
-
    (* keep="soft" *)
    logic [3:0] redlo, greenlo, bluelo;
 
@@ -484,12 +445,13 @@ module chip_top
       .hsync (vga_hsync),
       .vsync (vga_vsync),
 
-      .mem_clk(videomem_clk),
-      .mem_en (videomem_en),
-      .mem_we (videomem_we),
-      .mem_addr (videomem_addr[VIDEOMEM_SIZE - 1:2]),
-      .mem_write (videomem_wrdata),
-      .mem_read (videomem_rddata)
+      .aclk (clk),
+      .aresetn (rstn),
+      .dma (dma_nasti),
+
+      .s_nasti_aclk (clk),
+      .s_nasti_aresetn (rstn),
+      .s_nasti (io_videomem_lite)
    );
 
    /////////////////////////////////////////////////////////////
