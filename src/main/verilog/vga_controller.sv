@@ -348,11 +348,11 @@ nasti_data_mover # (
    .aresetn (aresetn),
    .src (dma),
    .dest (buffer_ch),
-   .src_addr (dma_src_addr),
-   .dest_addr (dma_dest_addr),
-   .length (dma_length),
-   .en (dma_en),
-   .done (dma_done)
+   .r_src (dma_src_addr),
+   .r_dest (dma_dest_addr),
+   .r_len (dma_length),
+   .r_valid (dma_en),
+   .r_ready (dma_done)
 );
 
 assign dma.aw_valid = 0;
