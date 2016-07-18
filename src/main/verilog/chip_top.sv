@@ -425,88 +425,96 @@ module chip_top
 `endif
 
    //////////////////////////////////////////////////////////////
-   // Video Memory
-
-   // nasti_channel
-   //   #(
-   //     .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
-   //     .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
-   // io_videomem_lite();
-
-   // localparam VIDEOMEM_SIZE = 18;        // 2^18 -> 256 KiB
-
-   // logic videomem_rst, videomem_clk, videomem_en;
-   // logic [`LOWRISC_IO_DAT_WIDTH/8-1:0] videomem_we;
-   // logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
-   // logic [`LOWRISC_IO_DAT_WIDTH-1:0]   videomem_wrdata, videomem_rddata;
-
-   // axi_bram_ctrl_1 videomem_ctl
-   //   (
-   //    .s_axi_aclk      ( clk                         ),
-   //    .s_axi_aresetn   ( rstn                        ),
-   //    .s_axi_araddr    ( io_videomem_lite.ar_addr    ),
-   //    .s_axi_arprot    ( 3'b000                      ),
-   //    .s_axi_arready   ( io_videomem_lite.ar_ready   ),
-   //    .s_axi_arvalid   ( io_videomem_lite.ar_valid   ),
-   //    .s_axi_awaddr    ( io_videomem_lite.aw_addr    ),
-   //    .s_axi_awprot    ( 3'b000                      ),
-   //    .s_axi_awready   ( io_videomem_lite.aw_ready   ),
-   //    .s_axi_awvalid   ( io_videomem_lite.aw_valid   ),
-   //    .s_axi_bready    ( io_videomem_lite.b_ready    ),
-   //    .s_axi_bresp     ( io_videomem_lite.b_resp     ),
-   //    .s_axi_bvalid    ( io_videomem_lite.b_valid    ),
-   //    .s_axi_rdata     ( io_videomem_lite.r_data     ),
-   //    .s_axi_rready    ( io_videomem_lite.r_ready    ),
-   //    .s_axi_rresp     ( io_videomem_lite.r_resp     ),
-   //    .s_axi_rvalid    ( io_videomem_lite.r_valid    ),
-   //    .s_axi_wdata     ( io_videomem_lite.w_data     ),
-   //    .s_axi_wready    ( io_videomem_lite.w_ready    ),
-   //    .s_axi_wstrb     ( io_videomem_lite.w_strb     ),
-   //    .s_axi_wvalid    ( io_videomem_lite.w_valid    ),
-   //    .bram_rst_a      ( videomem_rst                ),
-   //    .bram_clk_a      ( videomem_clk                ),
-   //    .bram_en_a       ( videomem_en                 ),
-   //    .bram_we_a       ( videomem_we                 ),
-   //    .bram_addr_a     ( videomem_addr               ),
-   //    .bram_wrdata_a   ( videomem_wrdata             ),
-   //    .bram_rddata_a   ( videomem_rddata             )
-   //    );
+   // DMA
    
-   localparam LOWRISC_AXI_DATA_WIDTH = 64;
+   localparam LOWRISC_AXI_DATA_WIDTH = `ROCKET_MEM_DAT_WIDTH;
    localparam VIDEOMEM_SIZE          = 18;
+   localparam DMAREQMEM_SIZE         = 64; // TODO: update with more reasonable value once we know the size of DMA requests
 
-   logic        fetch_data;
-   logic [15:0] read_from;
-   logic [15:0] length_data;
-   logic [15:0] write_to;
-   logic        rd_en;
+   logic                     fetch_data;
+   logic [VIDEOMEM_SIZE-1:0] read_from;
+   logic [VIDEOMEM_SIZE-1:0] length_data;
+   logic [VIDEOMEM_SIZE-1:0] write_to;
+   logic                     rd_en;
 
    logic [LOWRISC_AXI_DATA_WIDTH-1:0] dma_data;
-   logic [31:0]                       videomem_rddata;
+   logic [LOWRISC_AXI_DATA_WIDTH-1:0] videomem_rddata;
    logic                              videomem_we;
+
+
+   nasti_channel
+     #(
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
+   io_dmareqmem_lite();
+
+   logic dmareqmem_rst, dmareqmem_clk, dmareqmem_en;
+   logic [`LOWRISC_IO_DAT_WIDTH/8-1:0] dmareqmem_we;
+   logic [DMAREQMEM_SIZE-1:0]          dmareqmem_addr;
+   //logic [`LOWRISC_IO_DAT_WIDTH-1:0]   dmareqmem_wrdata, dmareqmem_rddata;
+   logic [64-1:0]   dmareqmem_wrdata, dmareqmem_rddata;
+
+
+   axi_bram_ctrl_1 dmareqmem_ctl
+     (
+      .s_axi_aclk      ( clk                         ),
+      .s_axi_aresetn   ( rstn                        ),
+      .s_axi_araddr    ( io_dmareqmem_lite.ar_addr    ),
+      .s_axi_arprot    ( 3'b000                      ),
+      .s_axi_arready   ( io_dmareqmem_lite.ar_ready   ),
+      .s_axi_arvalid   ( io_dmareqmem_lite.ar_valid   ),
+      .s_axi_awaddr    ( io_dmareqmem_lite.aw_addr    ),
+      .s_axi_awprot    ( 3'b000                      ),
+      .s_axi_awready   ( io_dmareqmem_lite.aw_ready   ),
+      .s_axi_awvalid   ( io_dmareqmem_lite.aw_valid   ),
+      .s_axi_bready    ( io_dmareqmem_lite.b_ready    ),
+      .s_axi_bresp     ( io_dmareqmem_lite.b_resp     ),
+      .s_axi_bvalid    ( io_dmareqmem_lite.b_valid    ),
+      .s_axi_rdata     ( io_dmareqmem_lite.r_data     ),
+      .s_axi_rready    ( io_dmareqmem_lite.r_ready    ),
+      .s_axi_rresp     ( io_dmareqmem_lite.r_resp     ),
+      .s_axi_rvalid    ( io_dmareqmem_lite.r_valid    ),
+      .s_axi_wdata     ( io_dmareqmem_lite.w_data     ),
+      .s_axi_wready    ( io_dmareqmem_lite.w_ready    ),
+      .s_axi_wstrb     ( io_dmareqmem_lite.w_strb     ),
+      .s_axi_wvalid    ( io_dmareqmem_lite.w_valid    ),
+      .bram_rst_a      ( dmareqmem_rst                ),
+      .bram_clk_a      ( dmareqmem_clk                ),
+      .bram_en_a       ( dmareqmem_en                 ),
+      .bram_we_a       ( dmareqmem_we                 ),
+      .bram_addr_a     ( dmareqmem_addr               ),
+      .bram_wrdata_a   ( dmareqmem_wrdata             ),
+      .bram_rddata_a   ( dmareqmem_rddata             )
+      );
 
    video_dma_controller  #(
          .LOWRISC_AXI_DATA_WIDTH(LOWRISC_AXI_DATA_WIDTH),
          .VIDEOMEM_SIZE(VIDEOMEM_SIZE)
       )
       video_dma_controller_0 (
-         .clk(clk),
+         .clk(dmareqmem_clk),
          .rst(rst),
-
-         .fetch_data  (fetch_data),
-         .read_from   (read_from),     // TODO: set from Axi
-         .length_data (length_data),   // TODO: set from Axi
-         .write_to    (write_to),      // TODO: set from Axi
-         .rd_en       (rd_en),         // TODO: set from Axi
+         
+         .dmareqmem_we     (dmareqmem_we),
+         .dmareqmem_addr      (dmareqmem_addr),
+         .dmareqmem_wrdata (dmareqmem_wrdata),
 
          .dma_data        (dma_data),
          .videomem_rddata (videomem_rddata),
-         .videomem_we     (videomem_we)
+         .videomem_we     (videomem_we),
+
+         .ARADDR  (dma_nasti.ar_addr),
+         .ARVALID (dma_nasti.ar_valid),
+         .ARREADY (dma_nasti.ar_ready),
+
+         .RDATA   (dma_nasti.r_data),
+         .RLAST   (dma_nasti.r_last),
+         .RVALID  (dma_nasti.r_valid),
+         .RREADY  (dma_nasti.r_ready)
       );
 
 
    logic [VIDEOMEM_SIZE-1:0]           videomem_addr;
-   logic [LOWRISC_AXI_DATA_WIDTH-1:0]  videomem_rddata; // currently unused (but will be used in accelerator)
 
    video_unit video (
       .clk (clk),
@@ -755,7 +763,7 @@ module chip_top
 
    nasti_channel_slicer #(NUM_DEVICE)
    io_slicer (.s(io_cbo_lite), .m0(io_host_lite), .m1(io_uart_lite), .m2(io_spi_lite),
-              .m3(io_bram_lite), .m4(ios_dmm4), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
+              .m3(io_bram_lite), .m4(io_dmareqmem_lite), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
 
    // the io crossbar
    nasti_crossbar
@@ -797,8 +805,8 @@ module chip_top
    defparam io_crossbar.MASK3 = `DEV_MAP__io_ext_bram__MASK;
  `endif
 
-//   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videomem__BASE;
-//   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videomem__MASK;
+  defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_dmareqmem__BASE;
+  defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_dmareqmem__MASK;
 
    /////////////////////////////////////////////////////////////
    // the Rocket chip

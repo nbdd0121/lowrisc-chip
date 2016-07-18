@@ -1,88 +1,84 @@
+`include "consts.vh"
+
 module write_transaction #(
-        parameter LOWRISC_AXI_DATA_WIDTH = 64,
+        parameter LOWRISC_AXI_DATA_WIDTH = `ROCKET_MEM_DAT_WIDTH,
         parameter VIDEOMEM_SIZE          = 18
     )(
     input wire clk,
     input wire rst,
 
     // Request (from DMA)
-    input                                   wire data_avail,
-    input [VIDEOMEM_SIZE-1:0]               wire addr,
-    input [LOWRISC_AXI_DATA_WIDTH-1:0]      wire data,
-    input                                   wire final_packet,
+    input wire data_avail,
+    input wire [VIDEOMEM_SIZE-1:0] addr,
+    input wire [LOWRISC_AXI_DATA_WIDTH-1:0] data,
+    input wire final_packet,
 
     // Address Channel
-    output [VIDEOMEM_SIZE-1:0] wire AWADDR,
-    output                     wire AWVALID,
-    input                      wire AWREADY,
+    output reg [VIDEOMEM_SIZE-1:0] AWADDR,
+    output reg                 AWVALID,
+    input  reg                 AWREADY,
 
     // Data Channel
-    output [LOWRISC_AXI_DATA_WIDTH-1:0] logic WDATA,
-    output                              logic WLAST,
-    output                              logic WVALID,
-    input                               wire  WREADY,
+    output reg [LOWRISC_AXI_DATA_WIDTH-1:0] WDATA,
+    output reg                              WLAST,
+    output reg                              WVALID,
+    input  reg                              WREADY,
 
     // Response Channel
-    input  wire  BRESP,
-    input  wire  BVALID,
-    output logic BREADY
+    input  reg  BRESP,
+    input  reg  BVALID,
+    output reg  BREADY
     );
 
-    localparam 
-           IDLE     = 2'b00,
-           ADDR     = 2'b01,
-           WRITE    = 2'b10,
-           RESPONSE = 2'b11;
-
-    reg [1:0] axi_write_state, axi_write_state_next;
+    enum { AXIW_IDLE, AXIW_ADDR, AXIW_WRITE, AXIW_RESPONSE } axi_write_state, axi_write_state_next;
 
     always @(*)
         begin 
             axi_write_state_next = axi_write_state;
             case (axi_write_state)
-                IDLE:
+                AXIW_IDLE:
                     begin 
                         if (data_avail)
                             begin 
-                                axi_write_state_next = ADDR;
+                                axi_write_state_next = AXIW_ADDR;
                             end
                     end
-                ADDR:
+                AXIW_ADDR:
                     begin 
                         AWADDR = addr;
                         AWVALID = 1'b1;
                         if (AWREADY == 1'b0)
                             begin 
-                                axi_write_state_next = ADDR;
+                                axi_write_state_next = AXIW_ADDR;
                         	end
                         else
                             begin
-                                axi_write_state_next = WRITE;
+                                axi_write_state_next = AXIW_WRITE;
                             end
                     end
-                WRITE:
+                AXIW_WRITE:
                     begin 
                         WDATA = data;
                         WVALID = 1'b1;
                         if (WREADY == 1'b0)
                             begin 
-                            	axi_write_state_next = WRITE;
+                            	axi_write_state_next = AXIW_WRITE;
                             end
                         else
                             begin 
-                                axi_write_state_next = RESPONSE
+                                axi_write_state_next = AXIW_RESPONSE;
                             end
                     end
-                RESPONSE:
+                AXIW_RESPONSE:
                     begin
                         BREADY = 1'b1;
                         if (BVALID == 1'b0)
                             begin 
-                                axi_write_state_next = RESPONSE;
+                                axi_write_state_next = AXIW_RESPONSE;
                             end
                         else
                             begin 
-                                axi_write_state_next = IDLE;
+                                axi_write_state_next = AXIW_IDLE;
                             end
                     end
                 default : begin end
@@ -95,7 +91,7 @@ module write_transaction #(
         begin 
             if (rst)
                 begin
-                    axi_write_state <= IDLE;
+                    axi_write_state <= AXIW_IDLE;
                 end
             else
                 begin 
@@ -109,79 +105,75 @@ endmodule // write_transaction
 
 
 module read_transaction #(
-        parameter LOWRISC_AXI_DATA_WIDTH = 64,
+        parameter LOWRISC_AXI_DATA_WIDTH = `ROCKET_MEM_DAT_WIDTH,
         parameter VIDEOMEM_SIZE = 18
     )(
     input wire clk,
     input wire rst,
 
     // Request (from DMA)
-    input                               wire data_req,
-    input  [VIDEOMEM_SIZE-1:0]          wire addr,
-    output [LOWRISC_AXI_DATA_WIDTH-1:0] wire data,
+    input  reg data_req,
+    input  reg [VIDEOMEM_SIZE-1:0] addr,
+    output reg [LOWRISC_AXI_DATA_WIDTH-1:0] data,
 
     // Address Channel
-    output [VIDEOMEM_SIZE-1:0] wire ARADDR,
-    output                     wire ARVALID,
-    input                      wire ARREADY,
+    output reg [VIDEOMEM_SIZE-1:0] ARADDR,
+    output reg                     ARVALID,
+    input  reg                     ARREADY,
 
     // Data Channel
-    output [LOWRISC_AXI_DATA_WIDTH-1:0] logic RDATA,
-    output                              logic RLAST,
-    output                              logic RVALID,
-    input                               wire  RREADY,
+    output reg [LOWRISC_AXI_DATA_WIDTH-1:0] RDATA,
+    output reg                              RLAST,
+    output reg                              RVALID,
+    input  reg                              RREADY
 
     );
 
-    localparam 
-           IDLE     = 2'b00,
-           ADDR     = 2'b01,
-           READ     = 2'b10;
 
-    reg [1:0] axi_read_state, axi_read_state_next;
+    enum {AXIR_IDLE, AXIR_ADDR, AXIR_READ} axi_read_state, axi_read_state_next;
 
 
     always @(*)
         begin 
             axi_read_state_next = axi_read_state;
             case (axi_read_state)
-                IDLE:
+                AXIR_IDLE:
                     begin 
                         if (data_req)
                             begin 
-                                axi_read_state_next = ADDR;
+                                axi_read_state_next = AXIR_ADDR;
                             end
                     end
-                ADDR:
+                AXIR_ADDR:
                     begin 
                         ARADDR = addr;
                         ARVALID = 1'b1;
                         if (ARREADY == 1'b0)
                             begin
-                                axi_read_state_next = ADDR;
+                                axi_read_state_next = AXIR_ADDR;
                             end
                         else
                             begin
-                                axi_read_state_next = READ
+                                axi_read_state_next = AXIR_READ;
                             end
                     end
-                READ:
+                AXIR_READ:
                     begin
                     	RREADY = 1'b1;
                         if (RVALID == 1'b0)
                             begin
-                                axi_read_state_next = READ;
+                                axi_read_state_next = AXIR_READ;
                             end
                         else
                             begin
                                 data = RDATA;
                                 if (RLAST == 1'b1)
                                     begin 
-                                    	axi_read_state_next = IDLE;
+                                    	axi_read_state_next = AXIR_IDLE;
                                     end
                                 else
                                     begin 
-                                    	axi_read_state_next = READ;
+                                    	axi_read_state_next = AXIR_READ;
                                     end
                             end
                     end
@@ -195,7 +187,7 @@ module read_transaction #(
         begin 
             if (rst)
                 begin
-                    axi_read_state <= IDLE;
+                    axi_read_state <= AXIR_IDLE;
                 end
             else
                 begin 

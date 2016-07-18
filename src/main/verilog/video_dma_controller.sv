@@ -1,49 +1,87 @@
 /*
 * Possible extension: take input from FIFO, rather than directly from CPU
+*
+* 146------145-----------81----------------17------------0
+* | Enable |  Read From  |   Length Data   |  Write To   |
+* --------------------------------------------------------
 */
+`include "consts.vh"
+import pkg_dma_type::Dma_State;
+
 module video_dma_controller #(
-        parameter LOWRISC_AXI_DATA_WIDTH = 64,
+        parameter LOWRISC_AXI_DATA_WIDTH = `ROCKET_MEM_DAT_WIDTH,
         parameter VIDEOMEM_SIZE = 18 // 2^18 -> 256 KiB
     )(
         input          clk,           // Bus clock
         input          rst,
 
-        // DMA request inputs
-        output         fetch_data,
-        input  [15:0]  read_from,
-        input  [15:0]  length_data,
-        inout  [17:0]  write_to,        // Needs to be the same as parameter VIDEOMEM_SIZE-1
-        input          rd_en,             // read enable for video RAM
+        input dmareqmem_we,
+        input dmareqmem_addr,
+        input dmareqmem_wrdata,
 
         // Video memory
         output [LOWRISC_AXI_DATA_WIDTH-1:0] dma_data,
         input [31:0] videomem_rddata,   // For future use with acceleration
-        output reg   videomem_we
+        output reg   videomem_we,
+
+        // AXI interaction
+        // Address Channel
+        output [VIDEOMEM_SIZE-1:0] ARADDR,
+        output                     ARVALID,
+        input                      ARREADY,
+
+        // Data Channel
+        output [LOWRISC_AXI_DATA_WIDTH-1:0] RDATA,
+        output                              RLAST,
+        output                              RVALID,
+        input                               RREADY
     );
 
-localparam IDLE            = 3'b000,
-           INIT_ATTR       = 3'b001,
-           DECIDE_LENGTH   = 3'b010,
-           FIRST_ASSER_REQ = 3'b011,
-           ASSERT_REQ      = 3'b100,
-           WAIT_ACK        = 3'b101;
+typedef enum { DMA_IDLE, DMA_INIT_ATTR, DMA_DECIDE__LENGTH, 
+        DMA_FIRST_ASSERT_REQ, DMA_ASSERT_REQ, DMA_WAIT_ACK} Dma_State;
+pkg_dma_type::Dma_State dma_state;
+
+// DMA request inputs
+reg  [147:0] req_packet;
+
+reg         enable;
+reg  [63:0] read_from;
+reg  [63:0] length_data;
+reg  [17:0] write_to;     
+reg         rd_en;            
 
 
-reg   [2:0]  dma_state;
+reg          fetch_data;
 logic        ack_fetch_data;
 
-dma_descriptor_process #(
-    .IDLE            (IDLE),
-    .INIT_ATTR       (INIT_ATTR),
-    .DECIDE_LENGTH   (DECIDE_LENGTH),
-    .ASSERT_REQ      (ASSERT_REQ),
-    .WAIT_ACK        (WAIT_ACK)
-    )
+// Receiving requests from CPU (via BRAM)
+single_port_bram single_port_bram_0 (
+    .clk  (clk),
+    .en   (rd_en),
+    .we   (dmareqmem_we),
+    .addr (dmareqmem_addr),
+    .write(dmareqmem_wrdata),
+    .read (req_packet)
+    );
+
+
+always_ff @(posedge clk)
+    begin
+        if (!dmareqmem_we)
+            begin
+                write_to    = req_packet[17:0];
+                length_data = req_packet[81:18];
+                read_from   = req_packet[145:82];
+                enable      = req_packet[146];
+            end
+    end
+
+dma_descriptor_process
     dma_descriptor_process_0
     (
     .clk            (clk),
     .rst            (rst),
-    .descp_avail    (rd_en),
+    .descp_avail    (enable),
     .read_from      (read_from),
     .write_to       (write_to),
     .length_data    (length_data),
@@ -69,22 +107,22 @@ read_transaction #(
         .addr     (read_from),
         .data     (dma_data),
 
-        .ARADDR   (), // TODO: connect to AXI/TILELINK Interface
-        .ARVALID  (), // TODO: connect to AXI/TILELINK Interface
-        .ARREADY  (), // TODO: connect to AXI/TILELINK Interface
+        .ARADDR   (ARADDR), 
+        .ARVALID  (ARVALID), 
+        .ARREADY  (ARREADY), 
 
-        .RDATA    (), // TODO: connect to AXI/TILELINK Interface
-        .RLAST    (), // TODO: connect to AXI/TILELINK Interface
-        .RVALID   (), // TODO: connect to AXI/TILELINK Interface
-        .RREADY   ()  // TODO: connect to AXI/TILELINK Interface
-    )
+        .RDATA    (RDATA), 
+        .RLAST    (RLAST), 
+        .RVALID   (RVALID), 
+        .RREADY   (RREADY) 
+    );
 
 
 always @(posedge clk)
     begin
         ack_fetch_data <= 1'b0;
         case (dma_state)
-            FIRST_ASSER_REQ:
+            DMA_FIRST_ASSERT_REQ:
                 begin
                     videomem_we    <= 1'b0;
                     // dma_data       <= from DDR
@@ -92,7 +130,7 @@ always @(posedge clk)
 
                     ack_fetch_data <= 1'b1;
                 end
-            ASSERT_REQ:    
+            DMA_ASSERT_REQ:    
                 begin
                     videomem_we    <= 1'b0;
                     // dma_data       <= from DDR
