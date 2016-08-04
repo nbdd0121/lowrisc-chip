@@ -1,6 +1,6 @@
 [submodule "riscv-tools"]
 	path = riscv-tools
-	url = https://github.com/lowRISC/riscv-tools.git
+	url = https://github.com/nbdd0121/lowrisc-tools.git
 [submodule "chisel"]
 	path = chisel
 	url = https://github.com/ucb-bar/chisel.git
