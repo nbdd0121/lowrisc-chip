@@ -58,11 +58,13 @@ module chip_top
    output        sd_reset,
 `endif
 
+`ifdef ADD_VIDEOCTRL
    output [3:0]  vga_red,
    output [3:0]  vga_green,
    output [3:0]  vga_blue,
    output        vga_hsync,
    output        vga_vsync,
+`endif
 
    // clock and reset
    input         clk_p,
@@ -432,9 +434,9 @@ module chip_top
      #(
        .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
        .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
-   io_videomem_lite();
+   io_videoctrl_lite();
 
-   (* keep="soft" *)
+`ifdef ADD_VIDEOCTRL
    logic [3:0] redlo, greenlo, bluelo;
 
    video_unit video (
@@ -452,8 +454,9 @@ module chip_top
 
       .s_nasti_aclk (clk),
       .s_nasti_aresetn (rstn),
-      .s_nasti (io_videomem_lite)
+      .s_nasti (io_videoctrl_lite)
    );
+`endif
 
    /////////////////////////////////////////////////////////////
    // SPI
@@ -673,7 +676,7 @@ module chip_top
 
    nasti_channel_slicer #(NUM_DEVICE)
    io_slicer (.s(io_cbo_lite), .m0(io_host_lite), .m1(io_uart_lite), .m2(io_spi_lite),
-              .m3(io_bram_lite), .m4(io_videomem_lite), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
+              .m3(io_bram_lite), .m4(io_videoctrl_lite), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
 
    // the io crossbar
    nasti_crossbar
@@ -715,8 +718,10 @@ module chip_top
    defparam io_crossbar.MASK3 = `DEV_MAP__io_ext_bram__MASK;
  `endif
 
-   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videomem__BASE;
-   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videomem__MASK;
+ `ifdef ADD_VIDEOCTRL
+   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videoctrl__BASE;
+   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videoctrl__MASK;
+ `endif
 
    /////////////////////////////////////////////////////////////
    // the Rocket chip

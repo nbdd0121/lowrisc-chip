@@ -15,6 +15,7 @@ case object UseHost extends Field[Boolean]
 case object UseUART extends Field[Boolean]
 case object UseSPI extends Field[Boolean]
 case object UseBootRAM extends Field[Boolean]
+case object UseVideoCtrl extends Field[Boolean]
 case object RAMSize extends Field[BigInt]
 
 class BaseConfig extends Config (
@@ -38,8 +39,10 @@ class BaseConfig extends Config (
         Dump("ADD_BRAM", true)
       }
 
-      // Video Controller
-      entries += AddrMapEntry("videomem", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
+      if (site(UseVideoCtrl)) {
+        entries += AddrMapEntry("videoctrl", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
+        Dump("ADD_VIDEOCTRL", true)
+      }
 
       if (site(UseHost)) {
         entries += AddrMapEntry("host", MemSize(1<<6, 1<<13, MemAttr(AddrMapProt.W)))
@@ -325,6 +328,7 @@ class BaseConfig extends Config (
       case UseUART => false
       case UseSPI => false
       case UseBootRAM => false
+      case UseVideoCtrl => false
 
       // NASTI BUS parameters
       case NastiKey("mem") =>
@@ -416,6 +420,12 @@ class WithBootRAMConfig extends Config (
   }
 )
 
+class WithVideoCtrlConfig extends Config (
+  (pname,site,here) => pname match {
+    case UseVideoCtrl => true
+  }
+)
+
 class With128MRamConfig extends Config (
   (pname,site,here) => pname match {
     case RAMSize => BigInt(1L << 27)  // 128 MB
@@ -423,10 +433,10 @@ class With128MRamConfig extends Config (
 )
 
 class FPGAConfig extends
-    Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new BaseConfig)
+    Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
 
 class FPGADebugConfig extends
-    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new BaseConfig)
+    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
 
 class Nexys4Config extends
     Config(new With128MRamConfig ++ new FPGAConfig)
