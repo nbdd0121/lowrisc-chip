@@ -41,7 +41,7 @@ trait HasTopLevelParameters {
 class TopIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with HasTopLevelParameters {
   val nasti_mem   = new NastiIO()(p.alterPartial({case BusId => "mem"}))
   val nasti_io    = new NastiIO()(p.alterPartial({case BusId => "io"}))
-  val nasti_dma   = new NastiIO()(p.alterPartial({case BusId => "mem"})).flip
+  val nasti_videoctrl_dma = new NastiIO()(p.alterPartial({case BusId => "mem"})).flip
   val interrupt   = UInt(INPUT, p(XLen))
   val debug_mam   = (new MamIO).flip
   val cpu_rst     = Bool(INPUT)
@@ -139,16 +139,21 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
 
   mem_net.io.clients_cached <> tileList.map(_.io.cached).flatten
 
-  // axi dma
-  val axi_dma = Module(new TileLinkIONastiIOConverter()(coherentNetParams))
-  axi_dma.io.nasti <> io.nasti_dma
+  var uncached_clients = tileList.map(_.io.uncached).flatten
+
+  if(p(UseVideoCtrl)) {
+    val videoctrl_axi = Module(new TileLinkIONastiIOConverter()(coherentNetParams))
+    videoctrl_axi.io.nasti <> io.nasti_videoctrl_dma
+    uncached_clients :+= videoctrl_axi.io.tl
+  }
 
   if(p(UseDebug)) {
     val debug_mam = Module(new TileLinkIOMamIOConverter()(coherentNetParams))
     debug_mam.io.mam <> io.debug_mam
-    mem_net.io.clients_uncached <> tileList.map(_.io.uncached).flatten :+ debug_mam.io.tl :+ axi_dma.io.tl
-  } else
-    mem_net.io.clients_uncached <> tileList.map(_.io.uncached).flatten :+ axi_dma.io.tl
+    uncached_clients :+= debug_mam.io.tl
+  }
+
+  mem_net.io.clients_uncached <> uncached_clients
 
   ////////////////////////////////////////////
   // L2 cache coherence managers
