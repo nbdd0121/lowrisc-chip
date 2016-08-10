@@ -1,35 +1,16 @@
 lowRISC chip
 ==============================================
 
-The root git repo for lowRISC development and FPGA
-demos.
+The video branch, developed by lowRISC interns in Summer 2016.
 
-[master] status: [![master build status](https://travis-ci.org/lowRISC/lowrisc-chip.svg?branch=master)](https://travis-ci.org/lowRISC/lowrisc-chip)
+[![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg)](https://travis-ci.org/nbdd0121/lowrisc-chip)
 
-[update] status: [![update build status](https://travis-ci.org/lowRISC/lowrisc-chip.svg?branch=update)](https://travis-ci.org/lowRISC/lowrisc-chip)
+Relevant blog posts:
 
-[dev] status: [![dev build status](https://travis-ci.org/lowRISC/lowrisc-chip.svg?branch=dev)](https://travis-ci.org/lowRISC/lowrisc-chip)
+[First week's blog](http://www.lowrisc.org/blog/2016/07/lowrisc-/-imc-internship-week-one---vga-output "Week One")
 
-Current version: Release version 0.2 (12-2015) --- Untethered lowRISC
+[Sixth week's blog](http://www.lowrisc.org/blog/2016/07/lowriscimc-internship-second-update "Week Six")
 
-To download the repo:
+Documentation will be published on the lowRISC website in due course.
 
-    git clone https://github.com/lowrisc/lowrisc-chip.git
-    cd lowrisc-chip
-    git submodule update --init --recursive
-
-
-
-For the previous release:
-
-    ################
-    # Version 0.1: tagged memory (04-2015)
-    ################
-    git clone https://github.com/lowrisc/lowrisc-chip.git
-    cd lowrisc-chip
-    git checkout tagged-memory-v0.1
-    git submodule update --init --recursive
-
-[master]: https://github.com/lowrisc/lowrisc-chip/tree/master
-[update]: https://github.com/lowrisc/lowrisc-chip/tree/update
-[dev]: https://github.com/lowrisc/lowrisc-chip/tree/dev
+The hardware is designed to run with a fork of the MPEG-2 reference implementation, located [here](https://github.com/ndavison21/lowrisc-mpeg2decode/ "MPEG-2 Codec").
