@@ -650,14 +650,14 @@ module chip_top
        .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
    io_host_lite();
 
- `ifdef ADD_HOST
+ `ifdef ADD_HOST /* verilator lint_off PINMISSING */
    host_behav host
      (
       .clk          ( clk          ),
       .rstn         ( rstn         ),
       .nasti        ( io_host_lite )
       );
- `endif
+ `endif /* verilator lint_on PINMISSING */
 
    /////////////////////////////////////////////////////////////
    // IO crossbar
@@ -726,7 +726,8 @@ module chip_top
    /////////////////////////////////////////////////////////////
    // the Rocket chip
 
-   Top Rocket
+   /* verilator lint_off PINMISSING */
+   Top Rocket 
      (
       .clk                           ( clk                                    ),
       .reset                         ( sys_rst                                ),
@@ -891,6 +892,7 @@ module chip_top
       .io_debug_rst                  ( rst                                    ),
       .io_cpu_rst                    ( cpu_rst                                )
       );
+  /* verilator lint_on PINMISSING */
 
    // interrupt
    assign interrupt = {62'b0, spi_irq, uart_irq};

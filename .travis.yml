@@ -11,7 +11,7 @@ env:
     - DOCKER_TOP=/opt/lowrisc
     - DOCKER_TAG=debug-v0.3
   matrix:
-    - CONFIG=DefaultConfig TEST_CASE=run-asm-tests
+    - CONFIG=DefaultConfig TEST_CASE=lint
 
 # actual test build
 

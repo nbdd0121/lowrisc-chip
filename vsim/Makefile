@@ -111,7 +111,7 @@ verilog: $(lowrisc_srcs) $(lowrisc_headers)
 
 include $(base_dir)/Makefrag-build
 
-.PHONY: verilog
+.PHONY: verilog lint
 junk += $(generated_dir)
 
 #--------------------------------------------------------------------
@@ -134,6 +134,16 @@ veri_flags = \
 	--exe \
 	--Mdir $(sim_dir)/verilator
 
+veri_lint_flags = \
+	+incdir+$(generated_dir) \
+	+incdir+$(base_dir)/src/main/verilog \
+	--top-module $(tb_top) \
+	--unroll-count 256 \
+	--trace \
+	-Wno-STMTDLY -Wno-ASSIGNIN\
+	--exe \
+	--Mdir $(sim_dir)/verilator
+
 # remove optimization if compilation takes too long or run out of memory
 #veri_opt_flags = -O3 -CFLAGS "-O1"
 veri_opt_flags =
@@ -146,6 +156,11 @@ verilator: verilator.log
 verilator.log: $(lowrisc_srcs) $(lowrisc_headers) $(verilog_srcs) $(verilog_headers) $(test_verilog_srcs) $(test_cxx_srcs) $(test_cxx_headers)
 	rm -fr $(sim_dir)/verilator
 	$(veri) --cc $(lowrisc_srcs) $(verilog_srcs) $(test_verilog_srcs) $(test_cxx_srcs) $(veri_flags) $(veri_opt_flags) -o ../$(CONFIG)-sim 2>&1 | tee $@
+
+lint: verilator.lint
+verilator.lint: $(lowrisc_srcs) $(lowrisc_headers) $(verilog_srcs) $(verilog_headers) $(test_verilog_srcs) $(test_cxx_srcs) $(test_cxx_headers)
+	rm -fr $(sim_dir)/verilator
+	$(veri) --lint-only $(lowrisc_srcs) $(verilog_srcs) $(test_verilog_srcs) $(test_cxx_srcs) $(veri_lint_flags) 2>&1 | ./lint_postprocess.sh
 
 sim: $(CONFIG)-sim
 $(CONFIG)-sim: verilator.log
