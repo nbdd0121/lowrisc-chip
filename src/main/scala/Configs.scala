@@ -16,7 +16,9 @@ case object UseUART extends Field[Boolean]
 case object UseSPI extends Field[Boolean]
 case object UseBootRAM extends Field[Boolean]
 case object UseVideoCtrl extends Field[Boolean]
+case object UseFlash extends Field[Boolean]
 case object RAMSize extends Field[BigInt]
+case object IOTagBits extends Field[Int]
 
 class BaseConfig extends Config (
   topDefinitions = { (pname,site,here) => 
@@ -42,6 +44,11 @@ class BaseConfig extends Config (
       if (site(UseVideoCtrl)) {
         entries += AddrMapEntry("videoctrl", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
         Dump("ADD_VIDEOCTRL", true)
+      }
+
+      if (site(UseFlash)) {
+        entries += AddrMapEntry("flash", MemSize(1<<24, 1<<24, MemAttr(AddrMapProt.RX)))
+          Dump("ADD_FLASH", true)
       }
 
       if (site(UseHost)) {
@@ -139,6 +146,7 @@ class BaseConfig extends Config (
       case MIFTagBits => Dump("ROCKET_MEM_TAG_WIDTH", 8)
       case MIFDataBits => Dump("ROCKET_MEM_DAT_WIDTH", site(TLKey("TCtoMem")).dataBitsPerBeat)
       case IODataBits => Dump("ROCKET_IO_DAT_WIDTH", 64)
+      case IOTagBits => Dump("ROCKET_IO_TAG_WIDTH", 8)
 
       //Params used by all caches
       case NSets => findBy(CacheName)
@@ -269,7 +277,7 @@ class BaseConfig extends Config (
           nCachingClients = 0,
           nCachelessClients = 1,
           maxClientXacts = 1,
-          maxClientsPerPort = 1,
+          maxClientsPerPort = site(NAcquireTransactors) + 2,
           maxManagerXacts = 1,
           dataBits = site(CacheBlockBytes)*8,
           dataBeats = 8
@@ -288,9 +296,9 @@ class BaseConfig extends Config (
           nManagers = 1,
           nCachingClients = 0,
           nCachelessClients = site(NBanks),
-          maxClientXacts = site(NAcquireTransactors) + 2,
-          maxClientsPerPort = 1,
-          maxManagerXacts = site(TCTransactors),
+          maxClientXacts = 1,
+          maxClientsPerPort = site(NAcquireTransactors) + 2,
+          maxManagerXacts = 1, //site(TCTransactors),
           dataBits = site(CacheBlockBytes)*8,
           dataBeats = 8
         )
@@ -329,6 +337,7 @@ class BaseConfig extends Config (
       case UseSPI => false
       case UseBootRAM => false
       case UseVideoCtrl => false
+      case UseFlash => false
 
       // NASTI BUS parameters
       case NastiKey("mem") =>
@@ -341,7 +350,7 @@ class BaseConfig extends Config (
         NastiParameters(
           dataBits = site(IODataBits),
           addrBits = site(PAddrBits),
-          idBits = 1
+          idBits = site(IOTagBits)
         )
       
       case ConfigString => makeConfigString()
@@ -400,7 +409,13 @@ class WithHostConfig extends Config (
   }
 )
 
-class DefaultConfig extends Config(new WithHostConfig ++ new BaseConfig)
+class With4Banks extends Config (
+  knobValues = {
+    case "NBANKS" => 4
+  }
+)
+
+class DefaultConfig extends Config(new With4Banks ++ new WithHostConfig ++ new BaseConfig)
 
 class WithSPIConfig extends Config (
   (pname,site,here) => pname match {
@@ -426,21 +441,42 @@ class WithVideoCtrlConfig extends Config (
   }
 )
 
+class WithFlashConfig extends Config (
+  (pname,site,here) => pname match {
+    case UseFlash => true
+  }
+)
+
 class With128MRamConfig extends Config (
   (pname,site,here) => pname match {
     case RAMSize => BigInt(1L << 27)  // 128 MB
   }
 )
 
+class With512MRamConfig extends Config (
+  (pname,site,here) => pname match {
+    case RAMSize => BigInt(1L << 29)  // 512 MB
+  }
+)
+
+class BasicFPGAConfig extends
+    Config(new WithSPIConfig ++ new WithBootRAMConfig ++ new WithFlashConfig ++ new BaseConfig)
+
 class FPGAConfig extends
-    Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
+    Config(new WithUARTConfig ++ new BasicFPGAConfig)
 
 class FPGADebugConfig extends
-    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
+    Config(new WithDebugConfig ++ new BasicFPGAConfig)
 
 class Nexys4Config extends
-    Config(new With128MRamConfig ++ new FPGAConfig)
+    Config(new With128MRamConfig ++ new WithVideoCtrlConfig ++ new FPGAConfig)
 
 class Nexys4DebugConfig extends
-    Config(new With128MRamConfig ++ new FPGADebugConfig)
+    Config(new With128MRamConfig ++ new WithVideoCtrlConfig ++ new FPGADebugConfig)
+
+class Nexys4VideoConfig extends
+    Config(new With512MRamConfig ++ new FPGAConfig)
+
+class Nexys4VideoDebugConfig extends
+    Config(new With512MRamConfig ++ new FPGADebugConfig)
 
