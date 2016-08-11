@@ -1,0 +1,2 @@
+(%Warning-WIDTH):.+?expects (\d+) (?:[^C]|C(?!ONST))*(CONST)?.+(expects|generates) (\d+) 
+(%Warning-PINMISSING): Use "\/\* verilator lint_off PINMISSING \*\/" and lint_on around source to disable this message\.

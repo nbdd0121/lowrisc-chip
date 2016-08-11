@@ -11,7 +11,7 @@ env:
     - DOCKER_TOP=/opt/lowrisc
     - DOCKER_TAG=debug-v0.3
   matrix:
-    - CONFIG=DefaultConfig TEST_CASE=lint
+    - CONFIG=DefaultConfig
 
 # actual test build
 
@@ -23,7 +23,8 @@ before_script:
  - docker start test
 
 script:
- - docker exec test make -C $DOCKER_TOP/vsim CONFIG=$CONFIG $TEST_CASE
+ - docker exec test make -C $DOCKER_TOP/vsim CONFIG=$CONFIG lint
+ - docker exec test make -C $DOCKER_TOP/vsim CONFIG=$CONFIG run-asm-tests
 
 after_script:
  - docker stop test

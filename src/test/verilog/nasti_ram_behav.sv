@@ -82,7 +82,7 @@ module nasti_ram_behav
        nasti.aw_ready <= 0;
      else if(nasti.aw_valid) begin
         //$display("%t, aw valid", $time);
-        nasti.aw_ready <= memory_write_req(nasti.aw_id, nasti.aw_addr, nasti.aw_len, nasti.aw_size, nasti.aw_user);
+        nasti.aw_ready <= memory_write_req(16'(nasti.aw_id), nasti.aw_addr, nasti.aw_len, nasti.aw_size, 16'(nasti.aw_user));
 `ifdef VERILATOR
         write_dummy(nasti.aw_ready);
 `endif
@@ -94,7 +94,7 @@ module nasti_ram_behav
        nasti.w_ready <= 0;
      else if(nasti.w_valid && rstn) begin
         //$display("%t, w valid", $time);
-        nasti.w_ready <= memory_write_data(nasti.w_data, nasti.w_strb, nasti.w_last);
+        nasti.w_ready <= memory_write_data(256'(nasti.w_data), 32'(nasti.w_strb), nasti.w_last);
 `ifdef VERILATOR
         write_dummy(nasti.w_ready);
 `endif
@@ -122,7 +122,7 @@ module nasti_ram_behav
        nasti.ar_ready <= 0;
      else if(nasti.ar_valid && rstn) begin
         //$display("%t, ar valid", $time);
-        nasti.ar_ready <= memory_read_req(nasti.ar_id, nasti.ar_addr, nasti.ar_len, nasti.ar_size, nasti.ar_user);
+        nasti.ar_ready <= memory_read_req(16'(nasti.ar_id), nasti.ar_addr, nasti.ar_len, nasti.ar_size, 16'(nasti.ar_user));
 `ifdef VERILATOR
         write_dummy(nasti.ar_ready);
 `endif

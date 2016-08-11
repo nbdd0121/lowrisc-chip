@@ -54,6 +54,6 @@ module host_behav
 
    always @(posedge clk)
      if(nasti.w_valid && nasti.w_ready)
-       host_req(msg_id, msg_data);
+       host_req(32'(msg_id), 64'(msg_data));
 
 endmodule // host_behav
