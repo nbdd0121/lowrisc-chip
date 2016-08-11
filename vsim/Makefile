@@ -160,7 +160,7 @@ verilator.log: $(lowrisc_srcs) $(lowrisc_headers) $(verilog_srcs) $(verilog_head
 lint: verilator.lint
 verilator.lint: $(lowrisc_srcs) $(lowrisc_headers) $(verilog_srcs) $(verilog_headers) $(test_verilog_srcs) $(test_cxx_srcs) $(test_cxx_headers)
 	rm -fr $(sim_dir)/verilator
-	$(veri) --lint-only $(lowrisc_srcs) $(verilog_srcs) $(test_verilog_srcs) $(test_cxx_srcs) $(veri_lint_flags) 2>&1 | grep -v generated-src | ./verilator_lint_process.py
+	$(veri) --lint-only $(lowrisc_srcs) $(verilog_srcs) $(test_verilog_srcs) $(test_cxx_srcs) $(veri_lint_flags) 2>&1 | grep -v generated-src | ./lint_process.py
 
 sim: $(CONFIG)-sim
 $(CONFIG)-sim: verilator.log
