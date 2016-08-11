@@ -139,6 +139,7 @@ veri_flags = \
 veri_lint_flags = \
 	+incdir+$(generated_dir) \
 	+incdir+$(base_dir)/src/main/verilog \
+	+incdir+$(base_dir)/socip/nasti \
 	--top-module $(tb_top) \
 	--unroll-count 256 \
 	--trace \
