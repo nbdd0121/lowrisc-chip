@@ -3,15 +3,12 @@ lowRISC chip
 
 The video branch, developed by lowRISC interns in Summer 2016.
 
-Branches:
-
-VGA:[![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=vga)](https://travis-ci.org/nbdd0121/lowrisc-chip)
-
-Video: [![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=video)](https://travis-ci.org/nbdd0121/lowrisc-chip)
-
-Linting: [![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=linting)](https://travis-ci.org/nbdd0121/lowrisc-chip)
-
-Acc: [![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=acc)](https://travis-ci.org/nbdd0121/lowrisc-chip)
+|  Branch | Status  |
+|---|---|
+| VGA  |[![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=vga)](https://travis-ci.org/nbdd0121/lowrisc-chip)   |
+| Video  | [![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=video)](https://travis-ci.org/nbdd0121/lowrisc-chip) |
+| Acc  | [![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=acc)](https://travis-ci.org/nbdd0121/lowrisc-chip) |
+| Linting  |[![Build Status](https://travis-ci.org/nbdd0121/lowrisc-chip.svg?branch=linting)](https://travis-ci.org/nbdd0121/lowrisc-chip)   |
 
 Relevant blog posts:
 
