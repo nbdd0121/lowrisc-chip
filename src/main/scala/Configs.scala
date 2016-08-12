@@ -16,6 +16,7 @@ case object UseUART extends Field[Boolean]
 case object UseSPI extends Field[Boolean]
 case object UseBootRAM extends Field[Boolean]
 case object UseVideoCtrl extends Field[Boolean]
+case object UseVideoAcc extends Field[Boolean]
 case object RAMSize extends Field[BigInt]
 
 class BaseConfig extends Config (
@@ -42,6 +43,11 @@ class BaseConfig extends Config (
       if (site(UseVideoCtrl)) {
         entries += AddrMapEntry("videoctrl", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
         Dump("ADD_VIDEOCTRL", true)
+      }
+      // Video Accelerator
+      if (site(UseVideoAcc)) {
+        entries += AddrMapEntry("video_acc_inst", MemSize(1<<12, 1<<13, MemAttr(AddrMapProt.RW)))
+        Dump("ADD_VIDEOACC", true)
       }
 
       if (site(UseHost)) {
@@ -255,7 +261,7 @@ class BaseConfig extends Config (
           coherencePolicy = new MESICoherence(site(L2DirectoryRepresentation)),
           nManagers = site(NBanks) + 1,
           nCachingClients = site(NTiles),
-          nCachelessClients = (if(site(UseDebug)) 1 else 0) + (if(site(UseVideoCtrl)) 1 else 0) + site(NTiles),
+          nCachelessClients = (if(site(UseDebug)) 1 else 0) + (if(site(UseVideoCtrl)) 1 else 0) + (if(site(UseVideoAcc)) 1 else 0) + site(NTiles),
           maxClientXacts = site(NMSHRs) + 1,
           maxClientsPerPort = 1,
           maxManagerXacts = site(NAcquireTransactors) + 2, // acquire, release, writeback
@@ -329,6 +335,7 @@ class BaseConfig extends Config (
       case UseSPI => false
       case UseBootRAM => false
       case UseVideoCtrl => false
+      case UseVideoAcc => false
 
       // NASTI BUS parameters
       case NastiKey("mem") =>
@@ -426,6 +433,12 @@ class WithVideoCtrlConfig extends Config (
   }
 )
 
+class WithVideoAccConfig extends Config (
+  (pname,site,here) => pname match {
+    case UseVideoAcc => true
+  }
+)
+
 class With128MRamConfig extends Config (
   (pname,site,here) => pname match {
     case RAMSize => BigInt(1L << 27)  // 128 MB
@@ -433,10 +446,11 @@ class With128MRamConfig extends Config (
 )
 
 class FPGAConfig extends
-    Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
+    Config(new WithUARTConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new WithVideoAccConfig ++ new BaseConfig)
 
 class FPGADebugConfig extends
-    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new BaseConfig)
+    Config(new WithDebugConfig ++ new WithSPIConfig ++ new WithBootRAMConfig ++ new WithVideoCtrlConfig ++ new WithVideoAccConfig ++ new BaseConfig)
+
 
 class Nexys4Config extends
     Config(new With128MRamConfig ++ new FPGAConfig)

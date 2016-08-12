@@ -100,6 +100,14 @@ module chip_top
        .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
        .DATA_WIDTH  ( `ROCKET_MEM_DAT_WIDTH ))
    videoctrl_dma_nasti();
+   
+   // DMA nasti bus for video acc
+   nasti_channel
+     #(
+       .ID_WIDTH    ( `ROCKET_MEM_TAG_WIDTH ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
+       .DATA_WIDTH  ( `ROCKET_MEM_DAT_WIDTH ))
+   videox_nasti();
 
    // Rocket IO nasti-lite bus
    nasti_channel
@@ -458,6 +466,29 @@ module chip_top
    );
 `endif
 
+   //////////////////////////////////////////////////////////////
+   // Video Accelerator
+
+   nasti_channel
+     #(
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
+   io_video_acc_inst_lite();
+
+`ifdef ADD_VIDEOACC
+   video_acc acc (
+      .clk(clk),
+      .rst(rst),
+      
+      .aclk (clk),
+      .aresetn (rstn),
+      .dma (videox_nasti),
+      
+      .s_nasti_aclk (clk),
+      .s_nasti_aresetn (rstn),
+      .s_nasti (io_video_acc_inst_lite)
+   );
+`endif
    /////////////////////////////////////////////////////////////
    // SPI
    nasti_channel
@@ -662,7 +693,7 @@ module chip_top
    /////////////////////////////////////////////////////////////
    // IO crossbar
 
-   localparam NUM_DEVICE = 5;
+   localparam NUM_DEVICE = 6;
 
    // output of the IO crossbar
    nasti_channel
@@ -676,7 +707,7 @@ module chip_top
 
    nasti_channel_slicer #(NUM_DEVICE)
    io_slicer (.s(io_cbo_lite), .m0(io_host_lite), .m1(io_uart_lite), .m2(io_spi_lite),
-              .m3(io_bram_lite), .m4(io_videoctrl_lite), .m5(ios_dmm5), .m6(ios_dmm6), .m7(ios_dmm7));
+              .m3(io_bram_lite), .m4(io_videoctrl_lite), .m5(io_video_acc_inst_lite), .m6(ios_dmm6), .m7(ios_dmm7));
 
    // the io crossbar
    nasti_crossbar
@@ -721,6 +752,11 @@ module chip_top
  `ifdef ADD_VIDEOCTRL
    defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videoctrl__BASE;
    defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videoctrl__MASK;
+ `endif
+
+ `ifdef ADD_VIDEOACC
+   defparam io_crossbar.BASE5 = `DEV_MAP__io_ext_video_acc_inst__BASE;
+   defparam io_crossbar.MASK5 = `DEV_MAP__io_ext_video_acc_inst__MASK;
  `endif
 
    /////////////////////////////////////////////////////////////
@@ -820,6 +856,52 @@ module chip_top
       .io_nasti_videoctrl_dma_r_bits_resp    ( videoctrl_dma_nasti.r_resp     ),
       .io_nasti_videoctrl_dma_r_bits_last    ( videoctrl_dma_nasti.r_last     ),
       .io_nasti_videoctrl_dma_r_bits_user    ( videoctrl_dma_nasti.r_user     ),
+ `endif
+ `ifdef ADD_VIDEOACC 
+      .io_nasti_videox_aw_valid      ( videox_nasti.aw_valid                  ),
+      .io_nasti_videox_aw_ready      ( videox_nasti.aw_ready                  ),
+      .io_nasti_videox_aw_bits_id    ( videox_nasti.aw_id                     ),
+      .io_nasti_videox_aw_bits_addr  ( videox_nasti.aw_addr                   ),
+      .io_nasti_videox_aw_bits_len   ( videox_nasti.aw_len                    ),
+      .io_nasti_videox_aw_bits_size  ( videox_nasti.aw_size                   ),
+      .io_nasti_videox_aw_bits_burst ( videox_nasti.aw_burst                  ),
+      .io_nasti_videox_aw_bits_lock  ( videox_nasti.aw_lock                   ),
+      .io_nasti_videox_aw_bits_cache ( videox_nasti.aw_cache                  ),
+      .io_nasti_videox_aw_bits_prot  ( videox_nasti.aw_prot                   ),
+      .io_nasti_videox_aw_bits_qos   ( videox_nasti.aw_qos                    ),
+      .io_nasti_videox_aw_bits_region( videox_nasti.aw_region                 ),
+      .io_nasti_videox_aw_bits_user  ( videox_nasti.aw_user                   ),
+      .io_nasti_videox_w_valid       ( videox_nasti.w_valid                   ),
+      .io_nasti_videox_w_ready       ( videox_nasti.w_ready                   ),
+      .io_nasti_videox_w_bits_data   ( videox_nasti.w_data                    ),
+      .io_nasti_videox_w_bits_strb   ( videox_nasti.w_strb                    ),
+      .io_nasti_videox_w_bits_last   ( videox_nasti.w_last                    ),
+      .io_nasti_videox_w_bits_user   ( videox_nasti.w_user                    ),
+      .io_nasti_videox_b_valid       ( videox_nasti.b_valid                   ),
+      .io_nasti_videox_b_ready       ( videox_nasti.b_ready                   ),
+      .io_nasti_videox_b_bits_id     ( videox_nasti.b_id                      ),
+      .io_nasti_videox_b_bits_resp   ( videox_nasti.b_resp                    ),
+      .io_nasti_videox_b_bits_user   ( videox_nasti.b_user                    ),
+      .io_nasti_videox_ar_valid      ( videox_nasti.ar_valid                  ),
+      .io_nasti_videox_ar_ready      ( videox_nasti.ar_ready                  ),
+      .io_nasti_videox_ar_bits_id    ( videox_nasti.ar_id                     ),
+      .io_nasti_videox_ar_bits_addr  ( videox_nasti.ar_addr                   ),
+      .io_nasti_videox_ar_bits_len   ( videox_nasti.ar_len                    ),
+      .io_nasti_videox_ar_bits_size  ( videox_nasti.ar_size                   ),
+      .io_nasti_videox_ar_bits_burst ( videox_nasti.ar_burst                  ),
+      .io_nasti_videox_ar_bits_lock  ( videox_nasti.ar_lock                   ),
+      .io_nasti_videox_ar_bits_cache ( videox_nasti.ar_cache                  ),
+      .io_nasti_videox_ar_bits_prot  ( videox_nasti.ar_prot                   ),
+      .io_nasti_videox_ar_bits_qos   ( videox_nasti.ar_qos                    ),
+      .io_nasti_videox_ar_bits_region( videox_nasti.ar_region                 ),
+      .io_nasti_videox_ar_bits_user  ( videox_nasti.ar_user                   ),
+      .io_nasti_videox_r_valid       ( videox_nasti.r_valid                   ),
+      .io_nasti_videox_r_ready       ( videox_nasti.r_ready                   ),
+      .io_nasti_videox_r_bits_id     ( videox_nasti.r_id                      ),
+      .io_nasti_videox_r_bits_data   ( videox_nasti.r_data                    ),
+      .io_nasti_videox_r_bits_resp   ( videox_nasti.r_resp                    ),
+      .io_nasti_videox_r_bits_last   ( videox_nasti.r_last                    ),
+      .io_nasti_videox_r_bits_user   ( videox_nasti.r_user                    ),
  `endif
       .io_nasti_io_aw_valid          ( io_nasti.aw_valid                      ),
       .io_nasti_io_aw_ready          ( io_nasti.aw_ready                      ),

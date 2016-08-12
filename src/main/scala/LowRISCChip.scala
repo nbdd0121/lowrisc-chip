@@ -42,6 +42,7 @@ class TopIO(implicit val p: Parameters) extends ParameterizedBundle()(p) with Ha
   val nasti_mem   = new NastiIO()(p.alterPartial({case BusId => "mem"}))
   val nasti_io    = new NastiIO()(p.alterPartial({case BusId => "io"}))
   val nasti_videoctrl_dma = new NastiIO()(p.alterPartial({case BusId => "mem"})).flip
+  val nasti_videox = new NastiIO()(p.alterPartial({case BusId => "mem"})).flip
   val interrupt   = UInt(INPUT, p(XLen))
   val debug_mam   = (new MamIO).flip
   val cpu_rst     = Bool(INPUT)
@@ -145,6 +146,13 @@ class Top(topParams: Parameters) extends Module with HasTopLevelParameters {
     val videoctrl_axi = Module(new TileLinkIONastiIOConverter()(coherentNetParams))
     videoctrl_axi.io.nasti <> io.nasti_videoctrl_dma
     uncached_clients :+= videoctrl_axi.io.tl
+  }
+
+  // axi dma for video acc
+  if(p(UseVideoAcc)) {
+    val axi_videox = Module(new TileLinkIONastiIOConverter()(coherentNetParams))
+    axi_videox.io.nasti <> io.nasti_videox
+    uncached_clients :+= axi_videox.io.tl
   }
 
   if(p(UseDebug)) {
