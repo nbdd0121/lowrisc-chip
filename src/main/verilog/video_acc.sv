@@ -226,6 +226,7 @@ module video_acc #(
    logic fifo_w_en, fifo_r_en;
    logic [31:0] fifo_w_data, fifo_r_data;
    logic inst_full, inst_empty;
+
    fifo #(
       .WIDTH(32),
       .DEPTH(5)
@@ -283,11 +284,23 @@ module video_acc #(
    logic [63:0] base_addr_wr;
 
    // Variables used to decode instructions
+   logic [9: 0] src_delay;
+   logic [9: 0] dest_delay;
+   logic [12:0] len_delay;
+   logic [4: 0] attrib_delay;
+
    logic [5: 0] opcode;
    logic [9: 0] src;
    logic [9: 0] dest;
    logic [12:0] len;
    logic [4: 0] attrib;
+
+   assign opcode =  fifo_r_data[ 5: 0];
+   assign src    = {fifo_r_data[12: 6], 6'b0};
+   assign dest   = {fifo_r_data[19:13], 6'b0};
+   assign len    = {fifo_r_data[26:20], 6'b0};
+   assign attrib =  fifo_r_data[31:27];
+
 
    // Comb logic as we want to update the read enable signal within the same cycle
    always_comb begin
@@ -324,11 +337,6 @@ module video_acc #(
    always_ff @(posedge clk or posedge rst)
    begin
       if (rst) begin
-         opcode             <= OP_NOP;
-         src                <= 10'b0;
-         dest               <= 10'b0;
-         len                <= 13'b0;
-         attrib             <= 5'b0;
          base_addr_rd       <= 64'b0;
          base_addr_wr       <= 64'b0;
          control_state      <= CTRL_IDLE;
@@ -360,7 +368,7 @@ module video_acc #(
          case (current_state)
             DECODE_IDLE: begin
                if (!inst_empty) begin
-                  case (fifo_r_data[5:0])
+                  case (opcode)
                      OP_NOP: begin
                         current_state <= DECODE_IDLE;
                         routing_dest  <= 'd0;
@@ -387,19 +395,19 @@ module video_acc #(
                      default:
                         current_state <= DECODE_IDLE;
                   endcase
-                  src       <= {fifo_r_data[12: 6], 6'b0};
-                  dest      <= {fifo_r_data[19:13], 6'b0};
-                  len       <= {fifo_r_data[26:20], 6'b0};
-                  attrib    <= fifo_r_data[31:27];
+                  src_delay    <= src;
+                  dest_delay   <= dest;
+                  len_delay    <= len;
+                  attrib_delay <= attrib;
                end
             end
             DECODE_LOAD_FULL_LOW: begin
                if (!inst_empty) begin
                   $display("Load %x to low dword", fifo_r_data);
                   current_state    <= DECODE_LOAD_FULL_HIGH;
-                  if (attrib == 5'h0)
+                  if (attrib_delay == 5'h0)
                      base_addr_rd[31: 0] <= fifo_r_data &~63;
-                  else if (attrib == 5'h1)
+                  else if (attrib_delay == 5'h1)
                      base_addr_wr[31: 0] <= fifo_r_data &~63;
                end else
                   current_state    <= DECODE_LOAD_FULL_LOW;
@@ -408,9 +416,9 @@ module video_acc #(
                if (!inst_empty) begin
                   $display("Load %x to high dword", fifo_r_data);
                   current_state    <= DECODE_IDLE;
-                  if (attrib == 5'h0)
+                  if (attrib_delay == 5'h0)
                      base_addr_rd[63:32] <= fifo_r_data;
-                  else if (attrib == 5'h1)
+                  else if (attrib_delay == 5'h1)
                      base_addr_wr[63:32] <= fifo_r_data;
                end else
                   current_state    <= DECODE_LOAD_FULL_HIGH;
@@ -431,9 +439,9 @@ module video_acc #(
                if (r_ready_from_local & r_valid_from_local) r_valid_from_local <= 0;
             end
             CTRL_INIT: begin
-               r_src              <= base_addr_rd + src;
-               r_dest             <= base_addr_wr + dest;
-               r_len              <= len;
+               r_src              <= base_addr_rd + src_delay;
+               r_dest             <= base_addr_wr + dest_delay;
+               r_len              <= len_delay;
                r_valid_to_local   <= 1;
                r_valid_from_local <= 1;
                control_state      <= CTRL_IDLE;
