@@ -8,8 +8,8 @@
 	path = hardfloat
 	url = https://github.com/ucb-bar/berkeley-hardfloat.git
 [submodule "fpga"]
-        path = fpga
-        url = https://github.com/nbdd0121/lowrisc-fpga.git
+	path = fpga
+	url = https://github.com/nbdd0121/lowrisc-fpga.git
 [submodule "rocket"]
 	path = rocket
 	url = https://github.com/lowrisc/rocket.git
@@ -34,3 +34,6 @@
 [submodule "opensocdebug/software"]
 	path = opensocdebug/software
 	url = https://github.com/opensocdebug/software
+[submodule "videox"]
+	path = videox
+	url = https://github.com/nbdd0121/lowrisc-videox.git

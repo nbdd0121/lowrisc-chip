@@ -477,9 +477,6 @@ module chip_top
 
 `ifdef ADD_VIDEOACC
    video_acc acc (
-      .clk(clk),
-      .rst(rst),
-      
       .aclk (clk),
       .aresetn (rstn),
       .dma (videox_nasti),
