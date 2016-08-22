@@ -26,6 +26,22 @@ module chip_top
    output        ddr_cs_n,
    output [7:0]  ddr_dm,
    output        ddr_odt,
+ `elsif NEXYS4_VIDEO
+   // DDR3 RAM
+   inout [15:0]  ddr_dq,
+   inout [1:0]   ddr_dqs_n,
+   inout [1:0]   ddr_dqs_p,
+   output [14:0] ddr_addr,
+   output [2:0]  ddr_ba,
+   output        ddr_ras_n,
+   output        ddr_cas_n,
+   output        ddr_we_n,
+   output        ddr_reset_n,
+   output        ddr_ck_n,
+   output        ddr_ck_p,
+   output        ddr_cke,
+   output [1:0]  ddr_dm,
+   output        ddr_odt,
  `elsif NEXYS4
    // DDR2 RAM
    inout [15:0]  ddr_dq,
@@ -48,6 +64,8 @@ module chip_top
 `ifdef ADD_UART_IO
    input         rxd,
    output        txd,
+   output        rts,
+   input         cts,
 `endif
 
 `ifdef ADD_SPI
@@ -56,6 +74,11 @@ module chip_top
    inout         spi_mosi,
    inout         spi_miso,
    output        sd_reset,
+`endif
+
+`ifdef ADD_FLASH
+   inout         flash_ss,
+   inout [3:0]   flash_io,
 `endif
 
 `ifdef ADD_VIDEOCTRL
@@ -71,6 +94,8 @@ module chip_top
    input         clk_n,
    input         rst_top
    );
+
+   genvar        i;
 
    // internal clock and reset signals
    logic  clk, rst, rstn;
@@ -108,24 +133,6 @@ module chip_top
        .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
        .DATA_WIDTH  ( `ROCKET_MEM_DAT_WIDTH ))
    videox_nasti();
-
-   // Rocket IO nasti-lite bus
-   nasti_channel
-     #(
-       .ID_WIDTH    ( 1                     ),
-       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
-       .DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH  ))
-   io_nasti();
-
-   nasti_channel
-     #(
-       .ID_WIDTH    ( 1                     ),
-       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
-       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH ))
-   io_lite();
-
-   /////////////////////////////////////////////////////////////
-   // Memory System
 
 `ifdef ADD_PHY_DDR
 
@@ -228,17 +235,20 @@ module chip_top
       .m_axi_rready         ( mem_mig_nasti.r_ready    )
       );
 
- `ifdef NEXYS4
+ `ifdef NEXYS4_COMMON
    //clock generator
    logic mig_sys_clk, clk_locked;
+   logic clk_io_uart; // UART IO clock for debug
+
    clk_wiz_0 clk_gen
      (
       .clk_in1     ( clk_p         ), // 100 MHz onboard
       .clk_out1    ( mig_sys_clk   ), // 200 MHz
+      .clk_io_uart ( clk_io_uart   ), // 60 MHz
       .resetn      ( rst_top       ),
       .locked      ( clk_locked    )
       );
- `endif //  `ifdef NEXYS4
+ `endif //  `ifdef NEXYS4_COMMON
 
    // DRAM controller
    mig_7series_0 dram_ctl
@@ -261,6 +271,24 @@ module chip_top
       .ddr3_ck_n            ( ddr_ck_n               ),
       .ddr3_cke             ( ddr_cke                ),
       .ddr3_cs_n            ( ddr_cs_n               ),
+      .ddr3_dm              ( ddr_dm                 ),
+      .ddr3_odt             ( ddr_odt                ),
+ `elsif NEXYS4_VIDEO
+      .sys_clk_i            ( mig_sys_clk            ),
+      .sys_rst              ( clk_locked             ),
+      .ui_addn_clk_0        ( clk                    ),
+      .ddr3_addr            ( ddr_addr               ),
+      .ddr3_ba              ( ddr_ba                 ),
+      .ddr3_cas_n           ( ddr_cas_n              ),
+      .ddr3_ck_n            ( ddr_ck_n               ),
+      .ddr3_ck_p            ( ddr_ck_p               ),
+      .ddr3_cke             ( ddr_cke                ),
+      .ddr3_ras_n           ( ddr_ras_n              ),
+      .ddr3_reset_n         ( ddr_reset_n            ),
+      .ddr3_we_n            ( ddr_we_n               ),
+      .ddr3_dq              ( ddr_dq                 ),
+      .ddr3_dqs_n           ( ddr_dqs_n              ),
+      .ddr3_dqs_p           ( ddr_dqs_p              ),
       .ddr3_dm              ( ddr_dm                 ),
       .ddr3_odt             ( ddr_odt                ),
  `elsif NEXYS4
@@ -350,15 +378,69 @@ module chip_top
 `endif // !`ifdef ADD_PHY_DDR
 
    /////////////////////////////////////////////////////////////
+   // IO space buses
+
+   nasti_channel
+     #(
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH  ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
+       .DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH  ))
+   io_nasti(),      // IO nasti interface From Rocket
+   io_io_nasti();   // non-memory IO nasti
+
+   // non-memory IO nasti-lite for peripherals
+   nasti_channel
+     #(
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH   ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH ))
+   io_lite();
+
+   nasti_lite_bridge
+     #(
+       .ID_WIDTH          ( `ROCKET_IO_TAG_WIDTH  ),
+       .ADDR_WIDTH        ( `ROCKET_PADDR_WIDTH   ),
+       .NASTI_DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH  ),
+       .LITE_DATA_WIDTH   ( `LOWRISC_IO_DAT_WIDTH )
+       )
+   io_bridge
+     (
+      .*,
+      .nasti_master  ( io_io_nasti  ),
+      .lite_slave    ( io_lite      )
+      );
+
+   /////////////////////////////////////////////////////////////
    // On-chip Block RAM
 
    nasti_channel
      #(
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH      ),
        .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
-       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
-   io_bram_lite();
+       .DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH      ))
+   io_bram_nasti();
 
 `ifdef ADD_BRAM
+
+   nasti_channel
+     #(
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH      ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
+   local_bram_nasti();
+
+   nasti_narrower
+     #(
+       .ID_WIDTH          ( `ROCKET_IO_TAG_WIDTH  ),
+       .ADDR_WIDTH        ( `ROCKET_PADDR_WIDTH   ),
+       .MASTER_DATA_WIDTH ( `ROCKET_IO_DAT_WIDTH  ),
+       .SLAVE_DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH ))
+   bram_narrower
+     (
+      .*,
+      .master ( io_bram_nasti     ),
+      .slave  ( local_bram_nasti  )
+      );
+
    localparam BRAM_SIZE          = 16;        // 2^16 -> 64 KB
    localparam BRAM_WIDTH         = 128;       // always 128-bit wide
    localparam BRAM_LINE          = 2 ** BRAM_SIZE / (BRAM_WIDTH/8);
@@ -376,34 +458,50 @@ module chip_top
 
    axi_bram_ctrl_0 BramCtl
      (
-      .s_axi_aclk      ( clk                     ),
-      .s_axi_aresetn   ( rstn                    ),
-      .s_axi_araddr    ( io_bram_lite.ar_addr    ),
-      .s_axi_arprot    ( 3'b000                  ),
-      .s_axi_arready   ( io_bram_lite.ar_ready   ),
-      .s_axi_arvalid   ( io_bram_lite.ar_valid   ),
-      .s_axi_awaddr    ( io_bram_lite.aw_addr    ),
-      .s_axi_awprot    ( 3'b000                  ),
-      .s_axi_awready   ( io_bram_lite.aw_ready   ),
-      .s_axi_awvalid   ( io_bram_lite.aw_valid   ),
-      .s_axi_bready    ( io_bram_lite.b_ready    ),
-      .s_axi_bresp     ( io_bram_lite.b_resp     ),
-      .s_axi_bvalid    ( io_bram_lite.b_valid    ),
-      .s_axi_rdata     ( io_bram_lite.r_data     ),
-      .s_axi_rready    ( io_bram_lite.r_ready    ),
-      .s_axi_rresp     ( io_bram_lite.r_resp     ),
-      .s_axi_rvalid    ( io_bram_lite.r_valid    ),
-      .s_axi_wdata     ( io_bram_lite.w_data     ),
-      .s_axi_wready    ( io_bram_lite.w_ready    ),
-      .s_axi_wstrb     ( io_bram_lite.w_strb     ),
-      .s_axi_wvalid    ( io_bram_lite.w_valid    ),
-      .bram_rst_a      ( ram_rst                 ),
-      .bram_clk_a      ( ram_clk                 ),
-      .bram_en_a       ( ram_en                  ),
-      .bram_we_a       ( ram_we                  ),
-      .bram_addr_a     ( ram_addr                ),
-      .bram_wrdata_a   ( ram_wrdata              ),
-      .bram_rddata_a   ( ram_rddata              )
+      .s_axi_aclk      ( clk                       ),
+      .s_axi_aresetn   ( rstn                      ),
+      .s_axi_arid      ( local_bram_nasti.ar_id    ),
+      .s_axi_araddr    ( local_bram_nasti.ar_addr  ),
+      .s_axi_arlen     ( local_bram_nasti.ar_len   ),
+      .s_axi_arsize    ( local_bram_nasti.ar_size  ),
+      .s_axi_arburst   ( local_bram_nasti.ar_burst ),
+      .s_axi_arlock    ( local_bram_nasti.ar_lock  ),
+      .s_axi_arcache   ( local_bram_nasti.ar_cache ),
+      .s_axi_arprot    ( local_bram_nasti.ar_prot  ),
+      .s_axi_arready   ( local_bram_nasti.ar_ready ),
+      .s_axi_arvalid   ( local_bram_nasti.ar_valid ),
+      .s_axi_rid       ( local_bram_nasti.r_id     ),
+      .s_axi_rdata     ( local_bram_nasti.r_data   ),
+      .s_axi_rresp     ( local_bram_nasti.r_resp   ),
+      .s_axi_rlast     ( local_bram_nasti.r_last   ),
+      .s_axi_rready    ( local_bram_nasti.r_ready  ),
+      .s_axi_rvalid    ( local_bram_nasti.r_valid  ),
+      .s_axi_awid      ( local_bram_nasti.aw_id    ),
+      .s_axi_awaddr    ( local_bram_nasti.aw_addr  ),
+      .s_axi_awlen     ( local_bram_nasti.aw_len   ),
+      .s_axi_awsize    ( local_bram_nasti.aw_size  ),
+      .s_axi_awburst   ( local_bram_nasti.aw_burst ),
+      .s_axi_awlock    ( local_bram_nasti.aw_lock  ),
+      .s_axi_awcache   ( local_bram_nasti.aw_cache ),
+      .s_axi_awprot    ( local_bram_nasti.aw_prot  ),
+      .s_axi_awready   ( local_bram_nasti.aw_ready ),
+      .s_axi_awvalid   ( local_bram_nasti.aw_valid ),
+      .s_axi_wdata     ( local_bram_nasti.w_data   ),
+      .s_axi_wstrb     ( local_bram_nasti.w_strb   ),
+      .s_axi_wlast     ( local_bram_nasti.w_last   ),
+      .s_axi_wready    ( local_bram_nasti.w_ready  ),
+      .s_axi_wvalid    ( local_bram_nasti.w_valid  ),
+      .s_axi_bid       ( local_bram_nasti.b_id     ),
+      .s_axi_bresp     ( local_bram_nasti.b_resp   ),
+      .s_axi_bready    ( local_bram_nasti.b_ready  ),
+      .s_axi_bvalid    ( local_bram_nasti.b_valid  ),
+      .bram_rst_a      ( ram_rst                   ),
+      .bram_clk_a      ( ram_clk                   ),
+      .bram_en_a       ( ram_en                    ),
+      .bram_we_a       ( ram_we                    ),
+      .bram_addr_a     ( ram_addr                  ),
+      .bram_wrdata_a   ( ram_wrdata                ),
+      .bram_rddata_a   ( ram_rddata                )
       );
 
    // the inferred BRAMs
@@ -487,6 +585,127 @@ module chip_top
    );
 `endif
    /////////////////////////////////////////////////////////////
+   // XIP SPI Flash
+   nasti_channel
+     #(
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH      ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH      ))
+   io_flash_nasti();
+
+`ifdef ADD_FLASH
+   nasti_channel
+     #(
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH      ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
+   local_flash_nasti();
+
+   nasti_narrower
+     #(
+       .ID_WIDTH          ( `ROCKET_IO_TAG_WIDTH  ),
+       .ADDR_WIDTH        ( `ROCKET_PADDR_WIDTH   ),
+       .MASTER_DATA_WIDTH ( `ROCKET_IO_DAT_WIDTH  ),
+       .SLAVE_DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH ))
+   flash_narrower
+     (
+      .*,
+      .master ( io_flash_nasti     ),
+      .slave  ( local_flash_nasti  )
+      );
+
+   wire       flash_ss_i,  flash_ss_o,  flash_ss_t;
+   wire [3:0] flash_io_i,  flash_io_o,  flash_io_t;
+
+   axi_quad_spi_1 flash_i
+     (
+      .ext_spi_clk      ( clk                           ),
+      .s_axi_aclk       ( clk                           ),
+      .s_axi_aresetn    ( rstn                          ),
+      .s_axi4_aclk      ( clk                           ),
+      .s_axi4_aresetn   ( rstn                          ),
+      .s_axi_araddr     ( 0                             ),
+      .s_axi_arready    (                               ),
+      .s_axi_arvalid    ( 1'b0                          ),
+      .s_axi_awaddr     ( 0                             ),
+      .s_axi_awready    (                               ),
+      .s_axi_awvalid    ( 1'b0                          ),
+      .s_axi_bready     ( 1'b0                          ),
+      .s_axi_bresp      (                               ),
+      .s_axi_bvalid     (                               ),
+      .s_axi_rdata      (                               ),
+      .s_axi_rready     ( 1'b0                          ),
+      .s_axi_rresp      (                               ),
+      .s_axi_rvalid     (                               ),
+      .s_axi_wdata      ( 0                             ),
+      .s_axi_wready     (                               ),
+      .s_axi_wstrb      ( 0                             ),
+      .s_axi_wvalid     ( 1'b0                          ),
+      .s_axi4_awid      ( local_flash_nasti.aw_id       ),
+      .s_axi4_awaddr    ( local_flash_nasti.aw_addr     ),
+      .s_axi4_awlen     ( local_flash_nasti.aw_len      ),
+      .s_axi4_awsize    ( local_flash_nasti.aw_size     ),
+      .s_axi4_awburst   ( local_flash_nasti.aw_burst    ),
+      .s_axi4_awlock    ( local_flash_nasti.aw_lock     ),
+      .s_axi4_awcache   ( local_flash_nasti.aw_cache    ),
+      .s_axi4_awprot    ( local_flash_nasti.aw_prot     ),
+      .s_axi4_awvalid   ( local_flash_nasti.aw_valid    ),
+      .s_axi4_awready   ( local_flash_nasti.aw_ready    ),
+      .s_axi4_wdata     ( local_flash_nasti.w_data      ),
+      .s_axi4_wstrb     ( local_flash_nasti.w_strb      ),
+      .s_axi4_wlast     ( local_flash_nasti.w_last      ),
+      .s_axi4_wvalid    ( local_flash_nasti.w_valid     ),
+      .s_axi4_wready    ( local_flash_nasti.w_ready     ),
+      .s_axi4_bid       ( local_flash_nasti.b_id        ),
+      .s_axi4_bresp     ( local_flash_nasti.b_resp      ),
+      .s_axi4_bvalid    ( local_flash_nasti.b_valid     ),
+      .s_axi4_bready    ( local_flash_nasti.b_ready     ),
+      .s_axi4_arid      ( local_flash_nasti.ar_id       ),
+      .s_axi4_araddr    ( local_flash_nasti.ar_addr     ),
+      .s_axi4_arlen     ( local_flash_nasti.ar_len      ),
+      .s_axi4_arsize    ( local_flash_nasti.ar_size     ),
+      .s_axi4_arburst   ( local_flash_nasti.ar_burst    ),
+      .s_axi4_arlock    ( local_flash_nasti.ar_lock     ),
+      .s_axi4_arcache   ( local_flash_nasti.ar_cache    ),
+      .s_axi4_arprot    ( local_flash_nasti.ar_prot     ),
+      .s_axi4_arvalid   ( local_flash_nasti.ar_valid    ),
+      .s_axi4_arready   ( local_flash_nasti.ar_ready    ),
+      .s_axi4_rid       ( local_flash_nasti.r_id        ),
+      .s_axi4_rdata     ( local_flash_nasti.r_data      ),
+      .s_axi4_rresp     ( local_flash_nasti.r_resp      ),
+      .s_axi4_rlast     ( local_flash_nasti.r_last      ),
+      .s_axi4_rvalid    ( local_flash_nasti.r_valid     ),
+      .s_axi4_rready    ( local_flash_nasti.r_ready     ),
+      .io0_i            ( flash_io_i[0]                 ),
+      .io0_o            ( flash_io_o[0]                 ),
+      .io0_t            ( flash_io_t[0]                 ),
+      .io1_i            ( flash_io_i[1]                 ),
+      .io1_o            ( flash_io_o[1]                 ),
+      .io1_t            ( flash_io_t[1]                 ),
+      .io2_i            ( flash_io_i[2]                 ),
+      .io2_o            ( flash_io_o[2]                 ),
+      .io2_t            ( flash_io_t[2]                 ),
+      .io3_i            ( flash_io_i[3]                 ),
+      .io3_o            ( flash_io_o[3]                 ),
+      .io3_t            ( flash_io_t[3]                 ),
+      .ss_i             ( flash_ss_i                    ),
+      .ss_o             ( flash_ss_o                    ),
+      .ss_t             ( flash_ss_t                    )
+      );
+
+   // tri-state gates
+   generate for(i=0; i<4; i++) begin
+      assign flash_io[i] = !flash_io_t[i] ? flash_io_o[i] : 1'bz;
+      assign flash_io_i[i] = flash_io[i];
+   end
+   endgenerate
+
+   assign flash_ss = !flash_ss_t ? flash_ss_o : 1'bz;
+   assign flash_ss_i = flash_ss;
+
+`endif
+
+   /////////////////////////////////////////////////////////////
    // SPI
    nasti_channel
      #(
@@ -526,7 +745,7 @@ module chip_top
       );
 
 
-   // tri-state gate to protect SPI IOs
+   // tri-state gate
    assign spi_mosi = !spi_mosi_t ? spi_mosi_o : 1'bz;
    assign spi_mosi_i = 1'b1;    // always in master mode
 
@@ -580,11 +799,14 @@ module chip_top
      #(
        .N_CORES          ( `ROCKET_NTILES          ),
        .MAM_DATA_WIDTH   ( `ROCKET_MAM_IO_DWIDTH   ),
-       .MAM_ADDR_WIDTH   ( `ROCKET_PADDR_WIDTH     )
+       .MAM_ADDR_WIDTH   ( `ROCKET_PADDR_WIDTH     ),
+       .FREQ_CLK_IO      ( 60000000                ),
+       .UART_BAUD        ( 12000000                )
        )
    u_debug_system
      (
       .*,
+      .clk_io          ( clk_io_uart            ),
       .uart_irq        ( uart_irq               ),
       .uart_ar_addr    ( io_uart_lite.ar_addr   ),
       .uart_ar_ready   ( io_uart_lite.ar_ready  ),
@@ -604,6 +826,8 @@ module chip_top
       .uart_w_valid    ( io_uart_lite.w_valid   ),
       .rx              ( rxd                    ),
       .tx              ( txd                    ),
+      .rts             ( rts                    ),
+      .cts             ( cts                    ),
       .sys_rst         ( sys_rst                ),
       .cpu_rst         ( cpu_rst                ),
       .ring_out        ( debug_ring_start       ),
@@ -657,8 +881,8 @@ module chip_top
       .dsrn            ( 1'b1                   ),
       .sin             ( rxd                    ),
       .sout            ( txd                    ),
-      .ctsn            ( 1'b1                   ),
-      .rtsn            (                        )
+      .ctsn            ( cts                    ),
+      .rtsn            ( rts                    )
       );
 
   `else // !`ifdef ADD_UART
@@ -667,7 +891,7 @@ module chip_top
 
   `endif // !`ifdef ADD_UART
 
- `endif
+ `endif // !`ifdef ENABLE_DEBUG
 
    /////////////////////////////////////////////////////////////
    // Host for ISA regression
@@ -690,7 +914,7 @@ module chip_top
    /////////////////////////////////////////////////////////////
    // IO crossbar
 
-   localparam NUM_DEVICE = 6;
+   localparam NUM_DEVICE = 5;
 
    // output of the IO crossbar
    nasti_channel
@@ -700,11 +924,20 @@ module chip_top
        .DATA_WIDTH  ( `LOWRISC_IO_DAT_WIDTH     ))
    io_cbo_lite();
 
-   nasti_channel ios_dmm4(), ios_dmm5(), ios_dmm6(), ios_dmm7(); // dummy channels
+   nasti_channel ios_dmm3(), ios_dmm4(), ios_dmm5(), ios_dmm6(), ios_dmm7(); // dummy channels
 
    nasti_channel_slicer #(NUM_DEVICE)
-   io_slicer (.s(io_cbo_lite), .m0(io_host_lite), .m1(io_uart_lite), .m2(io_spi_lite),
-              .m3(io_bram_lite), .m4(io_videoctrl_lite), .m5(io_video_acc_inst_lite), .m6(ios_dmm6), .m7(ios_dmm7));
+   io_slicer (
+              .master   ( io_cbo_lite   ),
+              .slave_0  ( io_host_lite  ),
+              .slave_1  ( io_uart_lite  ),
+              .slave_2  ( io_spi_lite   ),
+              .slave_3  ( ios_videoctrl_lite      ),
+              .slave_4  ( ios_video_acc_inst_lite ),
+              .slave_5  ( ios_dmm5      ),
+              .slave_6  ( ios_dmm6      ),
+              .slave_7  ( ios_dmm7      )
+              );
 
    // the io crossbar
    nasti_crossbar
@@ -722,8 +955,8 @@ module chip_top
    io_crossbar
      (
       .*,
-      .s ( io_lite     ),
-      .m ( io_cbo_lite )
+      .master ( io_lite     ),
+      .slave  ( io_cbo_lite )
       );
 
  `ifdef ADD_HOST
@@ -741,19 +974,14 @@ module chip_top
    defparam io_crossbar.MASK2 = `DEV_MAP__io_ext_spi__MASK;
  `endif
 
- `ifdef ADD_BRAM
-   defparam io_crossbar.BASE3 = `DEV_MAP__io_ext_bram__BASE;
-   defparam io_crossbar.MASK3 = `DEV_MAP__io_ext_bram__MASK;
- `endif
-
  `ifdef ADD_VIDEOCTRL
-   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_videoctrl__BASE;
-   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_videoctrl__MASK;
+   defparam io_crossbar.BASE3 = `DEV_MAP__io_ext_videoctrl__BASE;
+   defparam io_crossbar.MASK3 = `DEV_MAP__io_ext_videoctrl__MASK;
  `endif
 
  `ifdef ADD_VIDEOACC
-   defparam io_crossbar.BASE5 = `DEV_MAP__io_ext_video_acc_inst__BASE;
-   defparam io_crossbar.MASK5 = `DEV_MAP__io_ext_video_acc_inst__MASK;
+   defparam io_crossbar.BASE4 = `DEV_MAP__io_ext_video_acc_inst__BASE;
+   defparam io_crossbar.MASK4 = `DEV_MAP__io_ext_video_acc_inst__MASK;
  `endif
 
    /////////////////////////////////////////////////////////////
@@ -976,19 +1204,65 @@ module chip_top
    // interrupt
    assign interrupt = {62'b0, spi_irq, uart_irq};
 
-   // convert io_nasti to io_lite
-   nasti_lite_bridge
+   /////////////////////////////////////////////////////////////
+   // IO memory crossbar
+
+   localparam NUM_IO_MEM = 2;
+
+   // output of the IO crossbar
+   nasti_channel
      #(
-       .ID_WIDTH          ( 1                     ),
-       .ADDR_WIDTH        ( `ROCKET_PADDR_WIDTH   ),
-       .NASTI_DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH  ),
-       .LITE_DATA_WIDTH   ( `LOWRISC_IO_DAT_WIDTH )
+       .N_PORT      ( NUM_IO_MEM + 1            ),
+       .ID_WIDTH    ( `ROCKET_IO_TAG_WIDTH      ),
+       .ADDR_WIDTH  ( `ROCKET_PADDR_WIDTH       ),
+       .DATA_WIDTH  ( `ROCKET_IO_DAT_WIDTH      ))
+   io_mem_cbo_nasti();
+
+   nasti_channel io_mem_dmm3(), io_mem_dmm4(), io_mem_dmm5(), io_mem_dmm6(), io_mem_dmm7(); // dummy channels
+
+   nasti_channel_slicer #(NUM_IO_MEM + 1)
+   io_mem_slicer (
+                  .master   ( io_mem_cbo_nasti ),
+                  .slave_0  ( io_io_nasti      ),
+                  .slave_1  ( io_bram_nasti    ),
+                  .slave_2  ( io_flash_nasti   ),
+                  .slave_3  ( io_mem_dmm3      ),
+                  .slave_4  ( io_mem_dmm4      ),
+                  .slave_5  ( io_mem_dmm5      ),
+                  .slave_6  ( io_mem_dmm6      ),
+                  .slave_7  ( io_mem_dmm7      )
+                  );
+
+   // the io crossbar
+   nasti_crossbar
+     #(
+       .N_INPUT       ( 1                     ),
+       .N_OUTPUT      ( NUM_IO_MEM + 1        ),
+       .IB_DEPTH      ( 0                     ),
+       .OB_DEPTH      ( 1                     ), // some IPs response only with data, which will cause deadlock in nasti_demux (no lock)
+       .W_MAX         ( 1                     ),
+       .R_MAX         ( 1                     ),
+       .ID_WIDTH      ( `ROCKET_IO_TAG_WIDTH  ),
+       .ADDR_WIDTH    ( `ROCKET_PADDR_WIDTH   ),
+       .DATA_WIDTH    ( `ROCKET_IO_DAT_WIDTH  ),
+       .LITE_MODE     ( 0                     ),
+       .ESCAPE_ENABLE ( 1                     )
        )
-   io_bridge
+   io_mem_crossbar
      (
       .*,
-      .nasti_s  ( io_nasti  ),
-      .lite_m   ( io_lite   )
+      .master ( io_nasti         ),
+      .slave  ( io_mem_cbo_nasti )
       );
+
+ `ifdef ADD_BRAM
+   defparam io_mem_crossbar.BASE1 = `DEV_MAP__io_ext_bram__BASE;
+   defparam io_mem_crossbar.MASK1 = `DEV_MAP__io_ext_bram__MASK;
+ `endif
+
+ `ifdef ADD_FLASH
+   defparam io_mem_crossbar.BASE2 = `DEV_MAP__io_ext_flash__BASE;
+   defparam io_mem_crossbar.MASK2 = `DEV_MAP__io_ext_flash__MASK;
+ `endif
 
 endmodule // chip_top
