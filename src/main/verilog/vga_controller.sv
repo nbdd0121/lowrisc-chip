@@ -355,11 +355,41 @@ nasti_data_mover # (
    .r_ready (dma_done)
 );
 
-assign dma.aw_valid = 0;
-assign dma.w_valid = 0;
-assign dma.b_ready = 0;
-assign buffer_ch.ar_valid = 0;
+assign buffer_ch.ar_id     = 0;
+assign buffer_ch.ar_addr   = 0;
+assign buffer_ch.ar_len    = 0;
+assign buffer_ch.ar_size   = 0;
+assign buffer_ch.ar_burst  = 0;
+assign buffer_ch.ar_lock   = 0;
+assign buffer_ch.ar_cache  = 0;
+assign buffer_ch.ar_prot   = 0;
+assign buffer_ch.ar_qos    = 0;
+assign buffer_ch.ar_region = 0;
+assign buffer_ch.ar_user   = 0;
+assign buffer_ch.ar_valid  = 0;
+
 assign buffer_ch.r_ready = 0;
+
+assign dma.aw_id     = 0;
+assign dma.aw_addr   = 0;
+assign dma.aw_len    = 0;
+assign dma.aw_size   = 0;
+assign dma.aw_burst  = 0;
+assign dma.aw_lock   = 0;
+assign dma.aw_cache  = 0;
+assign dma.aw_prot   = 0;
+assign dma.aw_qos    = 0;
+assign dma.aw_region = 0;
+assign dma.aw_user   = 0;
+assign dma.aw_valid  = 0;
+
+assign dma.w_data  = 0;
+assign dma.w_strb  = 0;
+assign dma.w_last  = 0;
+assign dma.w_user  = 0;
+assign dma.w_valid = 0;
+
+assign dma.b_ready = 0;
 
 
 /* Clock freq choosing */
